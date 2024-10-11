@@ -4,7 +4,7 @@ This script automates the installation of Riven, with optional setups for Plex M
 
 ## Instructions
 
-1. Place all the bash scripts in the folder where you intend to run your Docker containers.
+1. **Place all the bash scripts in the folder where you intend to run your Docker containers.**
 2. Depending on your system, run one of the following commands with **sudo/admin privileges** to start the installation:
 
    ### Linux Systems:
