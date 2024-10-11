@@ -8,12 +8,7 @@ This script automates the installation of Riven, with optional setups for Plex M
 2. Depending on your system, run one of the following commands with **sudo/admin privileges** to start the installation:
 
    ### Linux Systems:
-   - On **Debian/Ubuntu-based systems** (including derivatives like Garuda or Arch):
-     ```bash
-     sudo ./main_setup.sh
-     ```
 
-   - On **CentOS, RedHat, or other systems requiring bash invocation**:
      ```bash
      sudo bash ./main_setup.sh
      ```
