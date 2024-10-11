@@ -29,3 +29,11 @@ This script automates the installation of Riven, with optional setups for Plex M
 ## Notes
 - This script will install WSL and Docker if they are missing from your system.
 - Make sure you have the necessary permissions to run the script with administrative privileges.
+
+## References
+
+This project integrates the following:
+
+- [Riven](https://github.com/rivenmedia/riven) from RivenMedia.
+- [Zurg](https://github.com/debridmediamanager/zurg-testing) from Debrid Media Manager.
+- [Plex Media Server](https://www.plex.tv/media-server-downloads/) from Plex, Inc.
