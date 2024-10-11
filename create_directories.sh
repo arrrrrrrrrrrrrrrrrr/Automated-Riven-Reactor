@@ -1,4 +1,3 @@
-# create_directories.sh
 #!/bin/bash
 
 # Check for root privileges
@@ -40,5 +39,10 @@ DATA_PATH="./riven"
 mkdir -p "$DATA_PATH"
 chown "$PUID:$PGID" "$DATA_PATH"
 chmod 755 "$DATA_PATH"
+
+# Create local folder for PostgreSQL data
+mkdir -p "./riven-db"
+chown "$PUID:$PGID" "./riven-db"
+chmod 755 "./riven-db"
 
 echo "Directories created and permissions set."

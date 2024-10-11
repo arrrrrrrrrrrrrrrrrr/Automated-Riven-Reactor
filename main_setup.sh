@@ -1,4 +1,3 @@
-# main_setup.sh
 #!/bin/bash
 
 # Check for root privileges
@@ -51,6 +50,22 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Bringing up Riven Docker containers..."
+
+# Stop and remove existing containers if they exist
+echo "Checking for existing Riven containers..."
+
+CONTAINERS=("riven" "riven-frontend" "riven_postgres")
+
+for CONTAINER in "${CONTAINERS[@]}"; do
+    if [ "$(docker ps -a -q -f name="^${CONTAINER}$")" ]; then
+        echo "Found existing container: $CONTAINER"
+        echo "Stopping and removing $CONTAINER..."
+        docker stop "$CONTAINER"
+        docker rm "$CONTAINER"
+    fi
+done
+
+# Now bring up the containers
 docker-compose up -d
 if [ $? -ne 0 ]; then
     echo "Error: docker-compose up failed."

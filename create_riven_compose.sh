@@ -1,4 +1,3 @@
-# create_riven_compose.sh
 #!/bin/bash
 
 # Check for root privileges
@@ -31,8 +30,11 @@ fi
 PUID=$(id -u "$SUDO_USER")
 PGID=$(id -g "$SUDO_USER")
 
+# Export PUID, PGID, and TZ to be used in docker-compose.yml
+export PUID PGID
+export TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
+
 ORIGIN="http://$(hostname -I | awk '{print $1}'):3000"
-TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
 
 # ZURG_ALL_PATH is /mnt/zurg/__all__
 read -p "Enter the zurg __all__ folder directory path (default is /mnt/zurg/__all__): " ZURG_ALL_PATH
@@ -49,71 +51,99 @@ else
     fi
 fi
 
+# Create the .env file for environment variables
+cat <<EOF > .env
+PUID=$PUID
+PGID=$PGID
+TZ=$TZ
+EOF
+
+echo ".env file created with PUID, PGID, and TZ."
+
 # Create the docker-compose.yml file
 cat <<EOF > docker-compose.yml
 version: '3.8'
 
 services:
-  riven:
-    image: spoked/riven:dev
-    container_name: riven
-    restart: unless-stopped
-    tty: true
-    environment:
-      PUID: "$PUID"
-      PGID: "$PGID"
-      ORIGIN: "$ORIGIN"
-      RIVEN_PLEX_URL: "$RIVEN_PLEX_URL"
-      RIVEN_PLEX_TOKEN: "$RIVEN_PLEX_TOKEN"
-      RIVEN_PLEX_RCLONE_PATH: "/mnt/zurg/__all__"
-      RIVEN_PLEX_LIBRARY_PATH: "/mnt/library"
-      RIVEN_DOWNLOADERS_REAL_DEBRID_ENABLED: "true"
-      RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY: "$RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY"
-      TZ: "$TZ"
-      REPAIR_SYMLINKS: "false"
-      HARD_RESET: "false"
-    ports:
-      - "3000:3000"
-    volumes:
-      - "./riven:/riven/data/"
-      - "$ZURG_ALL_PATH:/zur"
-      - "/mnt/library:/mnt/library"
-      - "$ZURG_ALL_PATH:/mnt/zurg/__all__"
-    networks:
-      - riven
-
   riven-frontend:
-    image: spoked/riven-frontend:dev
     container_name: riven-frontend
+    image: spoked/riven-frontend:latest
     restart: unless-stopped
-    tty: true
-    environment:
-      ORIGIN: "$ORIGIN"
-      BACKEND_URL: "http://riven:3000"
-      TZ: "$TZ"
-      DIALECT: "postgres"
-      DATABASE_URL: "postgresql+psycopg2://postgres:postgres@riven_postgresql/riven"
     ports:
       - "3000:3000"
-    networks:
-      - riven
-
-  riven_postgresql:
-    image: postgres:16.3-alpine3.20
-    container_name: riven_postgresql
+    tty: true
     environment:
-      PUID: "$PUID"
-      PGID: "$PGID"
-      POSTGRES_PASSWORD: "postgres"
-      POSTGRES_USERNAME: "postgres"
-      POSTGRES_DB: "riven"
-    volumes:
-      - "./postgresdata:/var/lib/postgresql/data"
+      - PUID=\${PUID}
+      - PGID=\${PGID}
+      - TZ=\${TZ}
+      - ORIGIN=$ORIGIN
+      - BACKEND_URL=http://riven:8080
+      - DIALECT=postgres
+      - DATABASE_URL=postgres://postgres:postgres@riven-db/riven
+    depends_on:
+      riven:
+        condition: service_healthy
     networks:
-      - riven
+      - riven_network
+
+  riven:
+    container_name: riven
+    image: spoked/riven:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    tty: true
+    environment:
+      - PUID=\${PUID}
+      - PGID=\${PGID}
+      - TZ=\${TZ}
+      - RIVEN_FORCE_ENV=true
+      - RIVEN_DATABASE_HOST=postgresql+psycopg2://postgres:postgres@riven-db/riven
+      - RIVEN_PLEX_URL=$RIVEN_PLEX_URL
+      - RIVEN_PLEX_TOKEN=$RIVEN_PLEX_TOKEN
+      - RIVEN_PLEX_RCLONE_PATH=/mnt/zurg/__all__
+      - RIVEN_PLEX_LIBRARY_PATH=/mnt/library
+      - RIVEN_DOWNLOADERS_REAL_DEBRID_ENABLED=true
+      - RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY=$RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY
+      - RIVEN_ORIGIN=$ORIGIN
+      - REPAIR_SYMLINKS=false
+      - HARD_RESET=false
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:8080 >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    volumes:
+      - ./riven:/riven/data
+      - $ZURG_ALL_PATH:/zur
+      - /mnt/library:/mnt/library
+      - $ZURG_ALL_PATH:/mnt/zurg/__all__
+    depends_on:
+      riven_postgres:
+        condition: service_healthy
+    networks:
+      - riven_network
+
+  riven_postgres:
+    container_name: riven-db
+    image: postgres:16.3-alpine3.20
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: riven
+    volumes:
+      - ./riven-db:/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - riven_network
 
 networks:
-  riven:
+  riven_network:
     driver: bridge
 EOF
 
