@@ -1,4 +1,4 @@
-# Automatic Installation of Riven, Plex, and Zurg + rclone (Optional)
+# Automatic Installation of Riven, Plex (Optional), and Zurg + rclone (Optional)
 
 This script automates the installation of Riven, with optional setups for Plex Media Server and Zurg with rclone. It also installs WSL (on Windows) and Docker if they are not already present on the system.
 
