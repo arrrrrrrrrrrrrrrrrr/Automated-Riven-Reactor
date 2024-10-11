@@ -10,27 +10,45 @@ echo "Creating docker-compose.yml for Riven..."
 
 # Function to get local IP address
 get_local_ip() {
-    # Try hostname -I (Linux)
-    local_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    # Initialize variable
+    local_ip=""
+
+    # Get list of network interfaces, exclude docker, lo, and other virtual interfaces
+    interfaces=$(ip -o -4 addr list | awk '{print $2}' | grep -vE 'docker|br-|veth|lo')
+
+    for iface in $interfaces; do
+        # Get the IP address associated with the interface
+        ip=$(ip -o -4 addr list $iface | awk '{print $4}' | cut -d/ -f1)
+        if [[ $ip != "127.0.0.1" ]]; then
+            local_ip=$ip
+            break
+        fi
+    done
+
     if [[ -z "$local_ip" ]]; then
-        # Try ipconfig getifaddr en0 (macOS)
+        # Fallback to hostname -I (Linux)
+        local_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
+
+    if [[ -z "$local_ip" ]]; then
+        # Fallback to ipconfig getifaddr en0 (macOS)
         local_ip=$(ipconfig getifaddr en0 2>/dev/null)
     fi
+
     if [[ -z "$local_ip" ]]; then
-        # Try ifconfig (Unix/macOS)
-        local_ip=$(ifconfig 2>/dev/null | grep -E 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' | awk '{ print $2 }' | head -n 1)
+        # Fallback to ifconfig (Unix/macOS)
+        local_ip=$(ifconfig 2>/dev/null | grep -E 'inet ' | grep -v '127.0.0.1' | awk '{ print $2 }' | head -n 1)
     fi
-    if [[ -z "$local_ip" ]]; then
-        # Try ip route (Linux)
-        local_ip=$(ip route get 1 | awk '{print $NF;exit}' 2>/dev/null)
-    fi
+
     if [[ -z "$local_ip" ]]; then
         echo "Unable to automatically detect your local IP address."
         read -p "Please enter your machine's IP address (default is 'localhost'): " user_input
         local_ip=${user_input:-localhost}
+    else
+        echo "Local IP detected: $local_ip"
     fi
-    echo "Local IP detected: $local_ip"
 }
+
 
 # Get the local IP address
 get_local_ip
@@ -132,12 +150,10 @@ services:
       - RIVEN_FORCE_ENV=true
       - RIVEN_DATABASE_HOST=postgresql+psycopg2://postgres:postgres@riven-db/riven
       - RIVEN_PLEX_URL=$RIVEN_PLEX_URL
-      - RIVEN_PLEX_TOKEN=$RIVEN_PLEX_TOKEN
       - RIVEN_PLEX_RCLONE_PATH=/mnt/zurg/__all__
       - RIVEN_PLEX_LIBRARY_PATH=/mnt/library
       - RIVEN_DOWNLOADERS_REAL_DEBRID_ENABLED=true
       - RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY=$RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY
-      - RIVEN_ORIGIN=$ORIGIN
       - REPAIR_SYMLINKS=false
       - HARD_RESET=false
     healthcheck:

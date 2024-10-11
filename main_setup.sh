@@ -77,20 +77,36 @@ echo "Setup complete! All services are up and running."
 
 # Function to get local IP address
 get_local_ip() {
-    # Try hostname -I (Linux)
-    local_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    # Initialize variable
+    local_ip=""
+
+    # Get list of network interfaces, exclude docker, lo, and other virtual interfaces
+    interfaces=$(ip -o -4 addr list | awk '{print $2}' | grep -vE 'docker|br-|veth|lo')
+
+    for iface in $interfaces; do
+        # Get the IP address associated with the interface
+        ip=$(ip -o -4 addr list $iface | awk '{print $4}' | cut -d/ -f1)
+        if [[ $ip != "127.0.0.1" ]]; then
+            local_ip=$ip
+            break
+        fi
+    done
+
     if [[ -z "$local_ip" ]]; then
-        # Try ipconfig getifaddr en0 (macOS)
+        # Fallback to hostname -I (Linux)
+        local_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
+
+    if [[ -z "$local_ip" ]]; then
+        # Fallback to ipconfig getifaddr en0 (macOS)
         local_ip=$(ipconfig getifaddr en0 2>/dev/null)
     fi
+
     if [[ -z "$local_ip" ]]; then
-        # Try ifconfig (Unix/macOS)
+        # Fallback to ifconfig (Unix/macOS)
         local_ip=$(ifconfig 2>/dev/null | grep -E 'inet ' | grep -v '127.0.0.1' | awk '{ print $2 }' | head -n 1)
     fi
-    if [[ -z "$local_ip" ]]; then
-        # Try ip route (Linux)
-        local_ip=$(ip route get 1 | awk '{print $NF;exit}' 2>/dev/null)
-    fi
+
     if [[ -z "$local_ip" ]]; then
         echo "Unable to automatically detect your local IP address."
         read -p "Please enter your machine's IP address (default is 'localhost'): " user_input
@@ -99,6 +115,7 @@ get_local_ip() {
         echo "Local IP detected: $local_ip"
     fi
 }
+
 
 # Get the local IP address
 get_local_ip
