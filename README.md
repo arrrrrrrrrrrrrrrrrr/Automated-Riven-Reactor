@@ -36,4 +36,4 @@ This project integrates the following:
 
 - [Riven](https://github.com/rivenmedia/riven) from RivenMedia.
 - [Zurg](https://github.com/debridmediamanager/zurg-testing) from Debrid Media Manager.
-- [Plex Media Server](https://www.plex.tv/media-server-downloads/) from Plex, Inc.
+- [Plex Media Server](https://github.com/plexinc/pms-docker) from Plex, Inc.
