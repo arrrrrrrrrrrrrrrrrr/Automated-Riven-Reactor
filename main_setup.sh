@@ -1,3 +1,4 @@
+# main_setup.sh
 #!/bin/bash
 
 # Check for root privileges
@@ -73,3 +74,33 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Setup complete! All services are up and running."
+
+# Function to get local IP address
+get_local_ip() {
+    # Try hostname -I (Linux)
+    local_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    if [[ -z "$local_ip" ]]; then
+        # Try ipconfig getifaddr en0 (macOS)
+        local_ip=$(ipconfig getifaddr en0 2>/dev/null)
+    fi
+    if [[ -z "$local_ip" ]]; then
+        # Try ifconfig (Unix/macOS)
+        local_ip=$(ifconfig 2>/dev/null | grep -E 'inet ' | grep -v '127.0.0.1' | awk '{ print $2 }' | head -n 1)
+    fi
+    if [[ -z "$local_ip" ]]; then
+        # Try ip route (Linux)
+        local_ip=$(ip route get 1 | awk '{print $NF;exit}' 2>/dev/null)
+    fi
+    if [[ -z "$local_ip" ]]; then
+        echo "Unable to automatically detect your local IP address."
+        read -p "Please enter your machine's IP address (default is 'localhost'): " user_input
+        local_ip=${user_input:-localhost}
+    else
+        echo "Local IP detected: $local_ip"
+    fi
+}
+
+# Get the local IP address
+get_local_ip
+
+echo "Continue to http://$local_ip:3000 to start Riven onboarding"

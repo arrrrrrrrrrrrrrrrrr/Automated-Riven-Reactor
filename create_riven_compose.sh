@@ -8,6 +8,36 @@ fi
 
 echo "Creating docker-compose.yml for Riven..."
 
+# Function to get local IP address
+get_local_ip() {
+    # Try hostname -I (Linux)
+    local_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    if [[ -z "$local_ip" ]]; then
+        # Try ipconfig getifaddr en0 (macOS)
+        local_ip=$(ipconfig getifaddr en0 2>/dev/null)
+    fi
+    if [[ -z "$local_ip" ]]; then
+        # Try ifconfig (Unix/macOS)
+        local_ip=$(ifconfig 2>/dev/null | grep -E 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' | awk '{ print $2 }' | head -n 1)
+    fi
+    if [[ -z "$local_ip" ]]; then
+        # Try ip route (Linux)
+        local_ip=$(ip route get 1 | awk '{print $NF;exit}' 2>/dev/null)
+    fi
+    if [[ -z "$local_ip" ]]; then
+        echo "Unable to automatically detect your local IP address."
+        read -p "Please enter your machine's IP address (default is 'localhost'): " user_input
+        local_ip=${user_input:-localhost}
+    fi
+    echo "Local IP detected: $local_ip"
+}
+
+# Get the local IP address
+get_local_ip
+
+# Set ORIGIN
+ORIGIN="http://$local_ip:3000"
+
 # Prompt for environment variables that require user input
 read -p "Enter your RIVEN_PLEX_TOKEN: " RIVEN_PLEX_TOKEN
 if [ -z "$RIVEN_PLEX_TOKEN" ]; then
@@ -34,11 +64,13 @@ PGID=$(id -g "$SUDO_USER")
 export PUID PGID
 export TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
 
-ORIGIN="http://$(hostname -I | awk '{print $1}'):3000"
-
 # ZURG_ALL_PATH is /mnt/zurg/__all__
-read -p "Enter the zurg __all__ folder directory path (default is /mnt/zurg/__all__): " ZURG_ALL_PATH
-ZURG_ALL_PATH=${ZURG_ALL_PATH:-/mnt/zurg/__all__}
+if [ -f ZURG_ALL_PATH.txt ]; then
+    ZURG_ALL_PATH=$(cat ZURG_ALL_PATH.txt)
+else
+    read -p "Enter the zurg __all__ folder directory path (default is /mnt/zurg/__all__): " ZURG_ALL_PATH
+    ZURG_ALL_PATH=${ZURG_ALL_PATH:-/mnt/zurg/__all__}
+fi
 
 # Read RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY from a file (if stored)
 if [ -f RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY.txt ]; then
@@ -115,9 +147,7 @@ services:
       retries: 10
     volumes:
       - ./riven:/riven/data
-      - $ZURG_ALL_PATH:/zur
-      - /mnt/library:/mnt/library
-      - $ZURG_ALL_PATH:/mnt/zurg/__all__
+      - /mnt:/mnt
     depends_on:
       riven_postgres:
         condition: service_healthy
