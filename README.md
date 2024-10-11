@@ -1,1 +1,31 @@
-Auto install Riven/Plex/Zurg+rclone automatically, it also installs WSL, docker if needed. put all the bashes into the folder you want to have the docker containers running, then start the main_setup.sh
+# Automatic Installation of Riven, Plex, and Zurg + rclone (Optional)
+
+This script automates the installation of Riven, with optional setups for Plex Media Server and Zurg with rclone. It also installs WSL (on Windows) and Docker if they are not already present on the system.
+
+## Instructions
+
+1. Place all the bash scripts in the folder where you intend to run your Docker containers.
+2. Depending on your system, run one of the following commands with **sudo/admin privileges** to start the installation:
+
+   ### Linux Systems:
+   - On **Debian/Ubuntu-based systems** (including derivatives like Garuda or Arch):
+     ```bash
+     sudo ./main_setup.sh
+     ```
+
+   - On **CentOS, RedHat, or other systems requiring bash invocation**:
+     ```bash
+     sudo bash ./main_setup.sh
+     ```
+
+   ### Windows Systems:
+   - Ensure WSL is installed (the script will install it automatically if missing).
+   - **Important**: Start the terminal with **admin privileges**.
+   - Then, run the following command in WSL:
+     ```bash
+     bash ./main_setup.sh
+     ```
+
+## Notes
+- This script will install WSL and Docker if they are missing from your system.
+- Make sure you have the necessary permissions to run the script with administrative privileges.
