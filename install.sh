@@ -89,9 +89,10 @@ setup_zurg_and_rclone() {
         # Edit docker-compose.yml
         sed -i "s/PUID: 1000/PUID: $PUID/g" docker-compose.yml
         sed -i "s/PGID: 1000/PGID: $PGID/g" docker-compose.yml
-        sed -i "s|/mnt/zurg|/mnt/zurg|g" docker-compose.yml
         sed -i "s|TZ: Europe/Berlin|TZ: $TZ|g" docker-compose.yml
-        sed -i '/volumes:/a\          - /mnt/zurg:/data:rshared' docker-compose.yml
+
+        # Ensure /mnt/zurg is set in docker-compose.yml
+        sed -i "s|/mnt/zurg|/mnt/zurg|g" docker-compose.yml
 
         # Create /mnt/zurg/__all__ directory
         mkdir -p /mnt/zurg/__all__
@@ -110,6 +111,95 @@ setup_zurg_and_rclone() {
     fi
 }
 
+# Function to create directories with correct permissions
+create_directories() {
+    echo "Creating directories with permissions 755 and owner $SUDO_USER..."
+
+    # Get PUID and PGID from the user who invoked sudo
+    PUID=$(id -u "$SUDO_USER")
+    PGID=$(id -g "$SUDO_USER")
+
+    # Create /mnt/library if it doesn't exist
+    LIBRARY_PATH="/mnt/library"
+    mkdir -p "$LIBRARY_PATH"
+    chown "$PUID:$PGID" "$LIBRARY_PATH"
+    chmod 755 "$LIBRARY_PATH"
+
+    # Paths to create
+    MOVIES_PATH="$LIBRARY_PATH/movies"
+    SHOWS_PATH="$LIBRARY_PATH/shows"
+
+    # Create directories if they do not exist
+    mkdir -p "$MOVIES_PATH"
+    mkdir -p "$SHOWS_PATH"
+
+    # Set permissions to 755
+    chmod 755 "$MOVIES_PATH"
+    chmod 755 "$SHOWS_PATH"
+
+    # Set ownership to specified user and group
+    chown "$PUID:$PGID" "$MOVIES_PATH"
+    chown "$PUID:$PGID" "$SHOWS_PATH"
+
+    # Create local folder called 'riven' for /riven/data/
+    DATA_PATH="./riven"
+    mkdir -p "$DATA_PATH"
+    chown "$PUID:$PGID" "$DATA_PATH"
+    chmod 755 "$DATA_PATH"
+
+    echo "Directories created and permissions set."
+}
+
+# Function to install Plex
+install_plex() {
+    read -p "Do you have Plex installed? (yes/no): " PLEX_INSTALLED
+
+    if [[ "$PLEX_INSTALLED" == "no" ]]; then
+        echo "Setting up Plex Media Server..."
+
+        # Create ./plexms directory
+        mkdir -p ./plexms/config
+        mkdir -p ./plexms/transcode
+
+        # Get PLEX_CLAIM from user
+        read -p "Enter your PLEX_CLAIM token (or leave blank if you don't have one): " PLEX_CLAIM
+
+        # Get TZ
+        TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
+
+        # Create docker-compose.yml for Plex
+        cat <<EOF > ./plexms/docker-compose.yml
+version: '3.8'
+
+services:
+  plex:
+    image: plexinc/pms-docker
+    container_name: plex
+    restart: unless-stopped
+    network_mode: "host"
+    environment:
+      - TZ=$TZ
+      - PLEX_CLAIM=$PLEX_CLAIM
+    volumes:
+      - ./config:/config
+      - ./transcode:/transcode
+      - /mnt:/mnt
+EOF
+
+        # Start Plex
+        cd plexms
+        docker-compose up -d
+        cd ..
+
+        echo "Plex Media Server setup complete."
+        echo "Please go to http://localhost:32400 to finish Plex setup."
+        read -p "Press Enter to continue after you have completed Plex setup..."
+
+    else
+        echo "Skipping Plex setup."
+    fi
+}
+
 # Function to create docker-compose.yml for riven
 create_docker_compose() {
     echo "Creating docker-compose.yml..."
@@ -125,27 +215,9 @@ create_docker_compose() {
     ORIGIN="http://$local_ip:3000"
     TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
 
-    # Create local folder called 'riven' for /riven/data/
-    DATA_PATH="./riven"
-    mkdir -p "$DATA_PATH"
-    chown "$PUID:$PGID" "$DATA_PATH"
-    chmod 755 "$DATA_PATH"
-
-    # Use /mnt/library/, create if it doesn't exist
-    LIBRARY_PATH="/mnt/library"
-    mkdir -p "$LIBRARY_PATH"
-    chown "$PUID:$PGID" "$LIBRARY_PATH"
-    chmod 755 "$LIBRARY_PATH"
-
-    # Create directories for movies and shows
-    MOVIES_PATH="$LIBRARY_PATH/movies"
-    SHOWS_PATH="$LIBRARY_PATH/shows"
-    mkdir -p "$MOVIES_PATH" "$SHOWS_PATH"
-    chown "$PUID:$PGID" "$MOVIES_PATH" "$SHOWS_PATH"
-    chmod 755 "$MOVIES_PATH" "$SHOWS_PATH"
-
     # ZURG_ALL_PATH is /mnt/zurg/__all__
-    ZURG_ALL_PATH="/mnt/zurg/__all__"
+    read -p "Enter the zurg __all__ folder directory path (default is /mnt/zurg/__all__): " ZURG_ALL_PATH
+    ZURG_ALL_PATH=${ZURG_ALL_PATH:-/mnt/zurg/__all__}
 
     # Create the docker-compose.yml file
     cat <<EOF > docker-compose.yml
@@ -239,6 +311,11 @@ if [[ "$OS_TYPE" == "Linux" ]]; then
     read -p "Enter your RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY: " RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY
 
     setup_zurg_and_rclone
+
+    # Create directories before installing Plex
+    create_directories
+
+    install_plex
 
     # Proceed to install riven
     create_docker_compose
