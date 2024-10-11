@@ -69,6 +69,16 @@ setup_zurg_and_rclone() {
     if [[ "$ZURG_RUNNING" == "no" ]]; then
         echo "Setting up zurg and rclone..."
 
+        # Get PUID and PGID from the user who invoked sudo
+        PUID=$(id -u "$SUDO_USER")
+        PGID=$(id -g "$SUDO_USER")
+        TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
+
+        # Create /mnt/zurg and set permissions
+        mkdir -p /mnt/zurg
+        chown "$PUID:$PGID" /mnt/zurg
+        chmod 755 /mnt/zurg
+
         # Clone zurg-testing repository
         git clone https://github.com/debridmediamanager/zurg-testing.git zurg
 
@@ -76,8 +86,20 @@ setup_zurg_and_rclone() {
         cd zurg
         sed -i "s/token: yourtoken/token: $RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY/g" config.yml
 
+        # Edit docker-compose.yml
+        sed -i "s/PUID: 1000/PUID: $PUID/g" docker-compose.yml
+        sed -i "s/PGID: 1000/PGID: $PGID/g" docker-compose.yml
+        sed -i "s|/mnt/zurg|/mnt/zurg|g" docker-compose.yml
+        sed -i "s|TZ: Europe/Berlin|TZ: $TZ|g" docker-compose.yml
+        sed -i '/volumes:/a\          - /mnt/zurg:/data:rshared' docker-compose.yml
+
+        # Create /mnt/zurg/__all__ directory
+        mkdir -p /mnt/zurg/__all__
+        chown "$PUID:$PGID" /mnt/zurg/__all__
+        chmod 755 /mnt/zurg/__all__
+
         # Start docker compose in zurg directory
-        docker compose up -d
+        docker-compose up -d
 
         # Go back to the original directory
         cd ..
@@ -109,14 +131,21 @@ create_docker_compose() {
     chown "$PUID:$PGID" "$DATA_PATH"
     chmod 755 "$DATA_PATH"
 
-    # Prompt for zurg __all__ folder directory path
-    read -p "Enter the zurg __all__ folder directory path: " ZURG_ALL_PATH
-
     # Use /mnt/library/, create if it doesn't exist
     LIBRARY_PATH="/mnt/library"
     mkdir -p "$LIBRARY_PATH"
     chown "$PUID:$PGID" "$LIBRARY_PATH"
     chmod 755 "$LIBRARY_PATH"
+
+    # Create directories for movies and shows
+    MOVIES_PATH="$LIBRARY_PATH/movies"
+    SHOWS_PATH="$LIBRARY_PATH/shows"
+    mkdir -p "$MOVIES_PATH" "$SHOWS_PATH"
+    chown "$PUID:$PGID" "$MOVIES_PATH" "$SHOWS_PATH"
+    chmod 755 "$MOVIES_PATH" "$SHOWS_PATH"
+
+    # ZURG_ALL_PATH is /mnt/zurg/__all__
+    ZURG_ALL_PATH="/mnt/zurg/__all__"
 
     # Create the docker-compose.yml file
     cat <<EOF > docker-compose.yml
@@ -188,35 +217,6 @@ EOF
     echo "docker-compose.yml created."
 }
 
-# Function to create directories with correct permissions
-create_directories() {
-    echo "Creating directories with permissions 755 and owner $SUDO_USER..."
-
-    # Create /mnt/library if it doesn't exist
-    LIBRARY_PATH="/mnt/library"
-    mkdir -p "$LIBRARY_PATH"
-    chown "$PUID:$PGID" "$LIBRARY_PATH"
-    chmod 755 "$LIBRARY_PATH"
-
-    # Paths to create
-    MOVIES_PATH="$LIBRARY_PATH/movies"
-    SHOWS_PATH="$LIBRARY_PATH/shows"
-
-    # Create directories if they do not exist
-    mkdir -p "$MOVIES_PATH"
-    mkdir -p "$SHOWS_PATH"
-
-    # Set permissions to 755
-    chmod 755 "$MOVIES_PATH"
-    chmod 755 "$SHOWS_PATH"
-
-    # Set ownership to specified user and group
-    chown "$PUID:$PGID" "$MOVIES_PATH"
-    chown "$PUID:$PGID" "$SHOWS_PATH"
-
-    echo "Directories created and permissions set."
-}
-
 # Main script execution
 echo "Starting setup..."
 
@@ -242,10 +242,9 @@ if [[ "$OS_TYPE" == "Linux" ]]; then
 
     # Proceed to install riven
     create_docker_compose
-    create_directories
 
     echo "Bringing up Riven Docker containers..."
-    docker compose up -d
+    docker-compose up -d
 
     echo "Setup complete! All services are up and running."
 
