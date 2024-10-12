@@ -39,7 +39,11 @@ This script automates the installation of Riven, with optional setups for Plex M
 ## Notes
 - The script will handle the installation of WSL and Docker on Windows systems if they are missing.
 - Make sure you have the necessary permissions to execute the script with administrative privileges.
-  
+
+## Need Help?
+
+- If you need any assistance with the installation or configuration, join our Discord community for help: [https://discord.gg/XTRvJxcF](https://discord.gg/XTRvJxcF).
+
 ## References
 
 This project integrates the following components:
