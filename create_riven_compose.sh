@@ -56,12 +56,6 @@ get_local_ip
 # Set ORIGIN
 ORIGIN="http://$local_ip:3000"
 
-# Prompt for environment variables that require user input
-read -p "Enter your RIVEN_PLEX_TOKEN: " RIVEN_PLEX_TOKEN
-if [ -z "$RIVEN_PLEX_TOKEN" ]; then
-    echo "Error: RIVEN_PLEX_TOKEN cannot be empty."
-    exit 1
-fi
 
 # If RIVEN_PLEX_URL is not set (Plex was not installed by script), prompt for it
 if [ -f RIVEN_PLEX_URL.txt ]; then
