@@ -17,7 +17,7 @@ if [[ "$PLEX_INSTALLED" == "no" ]]; then
     mkdir -p ./plex/transcode
 
     # Get PLEX_CLAIM from user
-    read -p "Enter your PLEX_CLAIM token (or leave blank if you don't have one): " PLEX_CLAIM
+    read -p "Enter your PLEX_CLAIM token (leave the field blank if you are unsure and continue): " PLEX_CLAIM
 
     # Get TZ
     TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
