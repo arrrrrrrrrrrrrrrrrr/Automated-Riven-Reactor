@@ -2,8 +2,8 @@
 
 # Check for root privileges
 if [[ $EUID -ne 0 ]]; then
-   echo "Error: This script must be run with administrative privileges. Please run with sudo."
-   exit 1
+    echo "Error: This script must be run with administrative privileges. Please run with sudo."
+    exit 1
 fi
 
 # Detect OS Distribution
@@ -107,18 +107,75 @@ if [[ "$ZURG_RUNNING" == "no" ]]; then
     # Update the token in config.yml using yq
     yq eval ".token = \"$RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY\"" -i config.yml
 
-    # Edit docker-compose.yml
-    sed -i "s/PUID: 1000/PUID: $PUID/g" docker-compose.yml
-    sed -i "s/PGID: 1000/PGID: $PGID/g" docker-compose.yml
-    sed -i "s|TZ: Europe/Berlin|TZ: $TZ|g" docker-compose.yml
+    # Create the docker-compose.yml file
+    echo "Creating docker-compose.yml..."
 
-    # Ensure /mnt/zurg is set in docker-compose.yml
-    sed -i "s|/mnt/zurg|/mnt/zurg|g" docker-compose.yml
+    # Detect if running under WSL
+    if grep -qEi "(Microsoft|WSL)" /proc/version &> /dev/null ; then
+        # Running under WSL, remove :rshared option
+        SHARED_OPTION=""
+    else
+        # Not WSL, keep :rshared option
+        SHARED_OPTION=":rshared"
+    fi
 
-    # Create /mnt/zurg/__all__ directory
+    # Use cat to create the docker-compose.yml file without indentation
+    cat <<EOF > docker-compose.yml
+version: '3.8'
+
+services:
+  zurg:
+    image: ghcr.io/debridmediamanager/zurg-testing:latest
+    container_name: zurg
+    restart: unless-stopped
+    environment:
+      - PUID=$PUID
+      - PGID=$PGID
+      - TZ=$TZ
+    volumes:
+      - /mnt/zurg:/data$SHARED_OPTION
+    networks:
+      - zurg_network
+
+  rclone:
+    image: rclone/rclone:latest
+    container_name: rclone
+    restart: unless-stopped
+    command: "rclone mount remote:path /mnt/zurg --config /config/rclone.conf --allow-other --buffer-size 256M --dir-cache-time 72h --vfs-read-chunk-size 128M --vfs-read-chunk-size-limit off --vfs-cache-mode writes"
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      - PUID=$PUID
+      - PGID=$PGID
+      - TZ=$TZ
+    volumes:
+      - /mnt/zurg:/mnt/zurg
+      - ./rclone:/config
+    networks:
+      - zurg_network
+
+networks:
+  zurg_network:
+    driver: bridge
+EOF
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to create docker-compose.yml."
+        exit 1
+    fi
+
+    # Create necessary directories
     mkdir -p /mnt/zurg/__all__
     chown "$PUID:$PGID" /mnt/zurg/__all__
     chmod 755 /mnt/zurg/__all__
+
+    mkdir -p ./rclone
+    chown "$PUID:$PGID" ./rclone
+    chmod 755 ./rclone
 
     # Start docker compose in zurg directory
     docker-compose up -d
@@ -130,10 +187,10 @@ if [[ "$ZURG_RUNNING" == "no" ]]; then
     # Go back to the original directory
     cd ..
 
+    # Store ZURG_ALL_PATH for later use
+    echo "/mnt/zurg/__all__" > ZURG_ALL_PATH.txt
+
     echo "zurg and rclone setup complete."
 else
     echo "Skipping zurg and rclone setup."
 fi
-
-# After setting up zurg and rclone, store ZURG_ALL_PATH in a file
-echo "$ZURG_ALL_PATH" > ZURG_ALL_PATH.txt
