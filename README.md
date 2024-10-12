@@ -24,7 +24,7 @@ This script automates the installation of Riven, with optional setups for Plex M
 
 #### Windows Systems:
 1. The script will install WSL automatically if it is not already present.
-2. **Important**: Launch the terminal with **administrator privileges**.
+2. **Important**: Launch the **Terminal** with **administrator privileges**.
 3. Once the terminal is open, run the following command in WSL to begin installation:
 
     ```bash
