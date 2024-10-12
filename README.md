@@ -42,7 +42,9 @@ This script automates the installation of Riven, with optional setups for Plex M
 
 ## Need Help?
 
-- If you need any assistance with the installation or configuration, join our Discord community for help: [https://discord.gg/XTRvJxcF](https://discord.gg/XTRvJxcF).
+If you need assistance with installation or configuration, join our Discord community for help by clicking the button below:
+
+[![Discord](https://img.shields.io/badge/Discord-Join%20us-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/XTRvJxcF)
 
 ## References
 
