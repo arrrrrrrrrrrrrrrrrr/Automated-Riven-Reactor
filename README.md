@@ -13,17 +13,15 @@ This script automates the installation of Riven, with optional setups for Plex M
      sudo bash ./main_setup.sh
      ```
 
-   ### Windows Systems:
-   - WSL will be installed (the script will install it automatically if missing).
-   - **Important**: Start the terminal with **admin privileges**.
-   - Then, run the following command in WSL:
-     ```bash
-     bash ./main_setup.sh
-     ```
+  ### Windows Systems:
+- The script will automatically install WSL if it is not already installed.
+- **Important**: Run the terminal with **administrator privileges**.
+- Then, execute the following command within WSL:
+  
+  ```bash
+  ./windows_install.bat
 
-## Notes
-- This script will install WSL and Docker if they are missing from your system.
-- Make sure you have the necessary permissions to run the script with administrative privileges.
+If WSL was installed by this script, once you set up a username and password for WSL, it will start. Type exit to continue, and input the password if prompted.
 
 ## References
 
