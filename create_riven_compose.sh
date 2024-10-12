@@ -1,72 +1,21 @@
 #!/bin/bash
 
+# Include common functions
+source ./common_functions.sh
+
 # Check for root privileges
 if [[ $EUID -ne 0 ]]; then
-   echo "Error: This script must be run with administrative privileges. Please run with sudo."
-   exit 1
+    echo "Error: This script must be run with administrative privileges. Please run with sudo."
+    exit 1
 fi
 
 echo "Creating docker-compose.yml for Riven..."
-
-# Function to get local IP address
-get_local_ip() {
-    # Initialize variable
-    local_ip=""
-
-    # Get list of network interfaces, exclude docker, lo, and other virtual interfaces
-    interfaces=$(ip -o -4 addr list | awk '{print $2}' | grep -vE 'docker|br-|veth|lo')
-
-    for iface in $interfaces; do
-        # Get the IP address associated with the interface
-        ip=$(ip -o -4 addr list $iface | awk '{print $4}' | cut -d/ -f1)
-        if [[ $ip != "127.0.0.1" ]]; then
-            local_ip=$ip
-            break
-        fi
-    done
-
-    if [[ -z "$local_ip" ]]; then
-        # Fallback to hostname -I (Linux)
-        local_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-    fi
-
-    if [[ -z "$local_ip" ]]; then
-        # Fallback to ipconfig getifaddr en0 (macOS)
-        local_ip=$(ipconfig getifaddr en0 2>/dev/null)
-    fi
-
-    if [[ -z "$local_ip" ]]; then
-        # Fallback to ifconfig (Unix/macOS)
-        local_ip=$(ifconfig 2>/dev/null | grep -E 'inet ' | grep -v '127.0.0.1' | awk '{ print $2 }' | head -n 1)
-    fi
-
-    if [[ -z "$local_ip" ]]; then
-        echo "Unable to automatically detect your local IP address."
-        read -p "Please enter your machine's IP address (default is 'localhost'): " user_input
-        local_ip=${user_input:-localhost}
-    else
-        echo "Local IP detected: $local_ip"
-    fi
-}
-
 
 # Get the local IP address
 get_local_ip
 
 # Set ORIGIN
 ORIGIN="http://$local_ip:3000"
-
-
-# If RIVEN_PLEX_URL is not set (Plex was not installed by script), prompt for it
-if [ -f RIVEN_PLEX_URL.txt ]; then
-    RIVEN_PLEX_URL=$(cat RIVEN_PLEX_URL.txt)
-else
-    read -p "Enter your RIVEN_PLEX_URL: " RIVEN_PLEX_URL
-    if [ -z "$RIVEN_PLEX_URL" ]; then
-        echo "Error: RIVEN_PLEX_URL cannot be empty."
-        exit 1
-    fi
-fi
 
 # Get PUID and PGID from the user who invoked sudo
 PUID=$(id -u "$SUDO_USER")
@@ -76,13 +25,23 @@ PGID=$(id -g "$SUDO_USER")
 export PUID PGID
 export TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
 
-# ZURG_ALL_PATH is /mnt/zurg/__all__
-if [ -f ZURG_ALL_PATH.txt ]; then
-    ZURG_ALL_PATH=$(cat ZURG_ALL_PATH.txt)
+# Ask if zurg library is at default path
+echo "Is your zurg library located at /mnt/zurg/__all__? (yes/no)"
+read -p "Enter your choice (yes/no): " ZURG_DEFAULT_PATH
+
+if [[ "$ZURG_DEFAULT_PATH" == "yes" ]]; then
+    ZURG_ALL_PATH="/mnt/zurg/__all__"
 else
-    read -p "Enter the zurg __all__ folder directory path (default is /mnt/zurg/__all__): " ZURG_ALL_PATH
-    ZURG_ALL_PATH=${ZURG_ALL_PATH:-/mnt/zurg/__all__}
+    # Prompt for custom zurg __all__ path
+    read -p "Enter your zurg library path: " ZURG_ALL_PATH
+    if [ -z "$ZURG_ALL_PATH" ]; then
+        echo "Error: Zurg library path cannot be empty."
+        exit 1
+    fi
 fi
+
+# Save ZURG_ALL_PATH for future reference
+echo "$ZURG_ALL_PATH" > ZURG_ALL_PATH.txt
 
 # Read RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY from a file (if stored)
 if [ -f RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY.txt ]; then
@@ -93,6 +52,7 @@ else
         echo "Error: RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY cannot be empty."
         exit 1
     fi
+    echo "$RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY" > RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY.txt
 fi
 
 # Create the .env file for environment variables
@@ -110,7 +70,6 @@ version: '3.8'
 
 services:
   riven-frontend:
-    container_name: riven-frontend
     image: spoked/riven-frontend:latest
     restart: unless-stopped
     ports:
@@ -131,7 +90,6 @@ services:
       - riven_network
 
   riven:
-    container_name: riven
     image: spoked/riven:latest
     restart: unless-stopped
     ports:
@@ -143,11 +101,13 @@ services:
       - TZ=\${TZ}
       - RIVEN_FORCE_ENV=true
       - RIVEN_DATABASE_HOST=postgresql+psycopg2://postgres:postgres@riven-db/riven
-      - RIVEN_PLEX_URL=$RIVEN_PLEX_URL
+      - RIVEN_PLEX_URL=
+      - RIVEN_PLEX_TOKEN=
       - RIVEN_PLEX_RCLONE_PATH=/mnt/zurg/__all__
       - RIVEN_PLEX_LIBRARY_PATH=/mnt/library
       - RIVEN_DOWNLOADERS_REAL_DEBRID_ENABLED=true
       - RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY=$RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY
+      - RIVEN_ORIGIN=$ORIGIN
       - REPAIR_SYMLINKS=false
       - HARD_RESET=false
     healthcheck:
@@ -157,7 +117,8 @@ services:
       retries: 10
     volumes:
       - ./riven:/riven/data
-      - /mnt:/mnt
+      - /mnt:/mnt/
+      - $ZURG_ALL_PATH:/mnt/zurg/__all__
     depends_on:
       riven_postgres:
         condition: service_healthy
@@ -165,7 +126,6 @@ services:
       - riven_network
 
   riven_postgres:
-    container_name: riven-db
     image: postgres:16.3-alpine3.20
     environment:
       PGDATA: /var/lib/postgresql/data/pgdata
