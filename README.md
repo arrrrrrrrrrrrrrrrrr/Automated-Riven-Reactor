@@ -2,6 +2,10 @@
 
 This script automates the installation of Riven, with optional setups for Plex Media Server and Zurg using rclone. It also installs WSL (on Windows) and Docker if they are not already installed on the system.
 
+## Prerequisite
+
+- You will need your **Real-Debrid API token**. To obtain this, visit [https://real-debrid.com/apitoken](https://real-debrid.com/apitoken) and generate your token. This token is necessary for integrating Real-Debrid with Riven and Zurg.
+
 ## Installation Instructions
 
 ### Step 1: Prepare the Folder
