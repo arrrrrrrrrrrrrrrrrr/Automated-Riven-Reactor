@@ -21,7 +21,7 @@ This script automates the installation of Riven, with optional setups for Plex M
   ```bash
   ./windows_install.bat
 
-If WSL was installed by this script, once you set up a username and password for WSL, it will start. Type exit to continue, and input the password if prompted.
+If WSL was installed by this script, once you set up a username and password for WSL, it will start. Type **exit** to continue rest of the set up, and input the password if prompted.
 
 ## References
 
