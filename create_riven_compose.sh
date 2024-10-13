@@ -101,8 +101,6 @@ services:
       - TZ=\${TZ}
       - RIVEN_FORCE_ENV=true
       - RIVEN_DATABASE_HOST=postgresql+psycopg2://postgres:postgres@riven-db/riven
-      - RIVEN_PLEX_URL=
-      - RIVEN_PLEX_TOKEN=
       - RIVEN_PLEX_RCLONE_PATH=/mnt/zurg/__all__
       - RIVEN_PLEX_LIBRARY_PATH=/mnt/library
       - RIVEN_DOWNLOADERS_REAL_DEBRID_ENABLED=true
