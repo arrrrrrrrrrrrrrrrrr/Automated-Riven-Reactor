@@ -92,8 +92,6 @@ services:
   riven:
     image: spoked/riven:latest
     restart: unless-stopped
-    ports:
-      - "8080:8080"
     tty: true
     environment:
       - PUID=\${PUID}
