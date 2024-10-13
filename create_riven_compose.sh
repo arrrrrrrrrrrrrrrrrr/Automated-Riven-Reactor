@@ -70,6 +70,7 @@ version: '3.8'
 
 services:
   riven-frontend:
+    container_name: riven-frontend
     image: spoked/riven-frontend:latest
     restart: unless-stopped
     ports:
@@ -90,6 +91,7 @@ services:
       - riven_network
 
   riven:
+    container_name: riven
     image: spoked/riven:latest
     restart: unless-stopped
     tty: true
@@ -122,6 +124,7 @@ services:
       - riven_network
 
   riven_postgres:
+    container_name: riven-db
     image: postgres:16.3-alpine3.20
     environment:
       PGDATA: /var/lib/postgresql/data/pgdata
