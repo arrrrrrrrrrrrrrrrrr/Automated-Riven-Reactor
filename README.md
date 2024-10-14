@@ -43,6 +43,16 @@ This script simplifies the installation of Riven and provides optional setups fo
 - During installation, you’ll have the option to install Plex Media Server.
 - Zurg and rclone will be automatically installed **only if they are present** in the directory. If they are already installed, the script will skip their installation.
 
+## windows_proxy.bat: Proxy WSL Docker Bridge IP to Machine IP
+
+The `windows_proxy.bat` script is designed to simplify access to Docker containers running inside WSL by binding the Docker network's bridge (NAT) IP (typically in the 172.x.x.x range) to your Windows machine's IP address.
+
+This allows any service running inside Docker containers, including Riven, Plex, or other applications, to be accessed using your machine's IP address rather than the internal Docker IP. This makes the containers easily reachable from outside the WSL environment without complex networking setups.
+
+Running `windows_proxy.bat` will ensure that any ports exposed by Docker containers in WSL will be proxied to your machine's IP, providing seamless access to all containerized services.
+
+
+
 ## Post-Installation Information
 
 After installation, the following default configurations will be set up:
