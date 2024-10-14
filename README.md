@@ -59,7 +59,7 @@ After installation, the following default configurations will be set up:
 
 - **Troubleshooting Logs**: Any troubleshooting logs generated after running the script will be saved as `troubleshoot-<timestamp>.txt` in the same directory as the script.
 
-- - **Plex URL**: If you set up Plex using this script, then the Plex's URL for Riven to recognize will be `http://plex:32400`.
+- **Plex URL**: If you set up Plex using this script, then the Plex's URL for Riven to recognize will be `http://plex:32400`.
 
 You can adjust these paths if needed, but ensure any changes are reflected in the appropriate configuration files to ensure smooth operation across Riven, Plex, and other services.
 
