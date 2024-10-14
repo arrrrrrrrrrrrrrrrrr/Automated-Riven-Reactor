@@ -141,7 +141,7 @@ services:
     image: rclone/rclone:latest
     container_name: rclone
     restart: unless-stopped
-    command: "rclone mount remote:path /mnt/zurg --config /config/rclone.conf --allow-other --buffer-size 256M --dir-cache-time 72h --vfs-read-chunk-size 128M --vfs-read-chunk-size-limit off --vfs-cache-mode writes"
+    command: "mount zurg: /data --allow-other --allow-non-empty --dir-cache-time 10s --vfs-cache-mode full"
     cap_add:
       - SYS_ADMIN
     devices:
