@@ -51,11 +51,11 @@ After installation, the following default configurations will be set up:
   
 - **Library Path**: The local media library is located at `/mnt/library`, where Riven and Plex scan, manage, and serve your content.
 
-- **Riven Configuration**: You can find the `settings.json` file for Riven in the `./riven` folder, located in the same directory where the scripts reside.
+- **Riven Configuration**: You can find the `settings.json` file for Riven in the `riven` folder, located in the same directory where the scripts reside.
 
 - **Riven Database**: The Riven database is stored in `/home/docker/riven-db`.
 
-- **Zurg/Rclone Information**: Zurg and rclone-related files are located in the `./zurg` folder, alongside the installation scripts. If they are already installed, the script will skip their reinstallation.
+- **Zurg/Rclone Information**: Zurg and rclone-related files are located in the `zurg` folder, alongside the installation scripts. If they are already installed, the script will skip their reinstallation.
 
 - **Troubleshooting Logs**: Any troubleshooting logs generated after running the script will be saved as `troubleshoot-<timestamp>.txt` in the same directory as the script.
 
