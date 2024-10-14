@@ -95,11 +95,11 @@ else
     local_ip=$(retrieve_saved_ip)
 fi
 
-echo " SSSSS   U     U   CCCCC   CCCCC   EEEEE   SSSSS   SSSSS"
+echo "SSSSSS   U     U   CCCCC   CCCCC   EEEEE  SSSSSS  SSSSSS"
 echo "S        U     U  C       C        E      S       S"
-echo " SSSSS   U     U  C       C        EEEEE   SSSSS   SSSSS"
+echo "SSSSSS   U     U  C       C        EEEEE   SSSSS  SSSSSS"
 echo "     S   U     U  C       C        E           S       S"
-echo " SSSSS    UUUUU    CCCCC   CCCCC   EEEEE   SSSSS   SSSSS"
+echo "SSSSSS   UUUUUUU   CCCCC   CCCCC   EEEEE  SSSSSS  SSSSSS"
 
 echo "Continue to http://$local_ip:3000 to start Riven onboarding"
 
