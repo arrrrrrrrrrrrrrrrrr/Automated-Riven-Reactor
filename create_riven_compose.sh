@@ -9,18 +9,16 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-# Function to get the local IP address
-get_local_ip() {
-    local_ip=$(hostname -I | awk '{print $1}')
-    if [ -z "$local_ip" ]; then
-        echo "Error: Could not retrieve local IP address."
-        exit 1
-    fi
-    echo "Local IP: $local_ip"
-}
+    
 
 # Get the local IP for ORIGIN
-get_local_ip
+if [ -f local_ip.txt ]; then
+    local_ip=$(retrieve_saved_ip)
+else
+    # If no IP is saved, run get_local_ip to generate one
+    get_local_ip
+    local_ip=$(retrieve_saved_ip)
+fi
 ORIGIN="http://$local_ip:3000"
 
 # Get PUID and PGID from the user who invoked sudo
@@ -90,7 +88,6 @@ echo ".env file created with PUID, PGID, and TZ."
 
 # Create the docker-compose.yml file
 cat <<EOF > docker-compose.yml
-version: '3.8'
 services:
   riven-frontend:
     image: spoked/riven-frontend:latest
@@ -149,6 +146,9 @@ services:
     image: postgres:16.3-alpine3.20
     container_name: riven-db
     environment:
+      PUID: \${PUID}
+      PGID: \${PGID}
+      TZ: \${TZ}
       PGDATA: /var/lib/postgresql/data/
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

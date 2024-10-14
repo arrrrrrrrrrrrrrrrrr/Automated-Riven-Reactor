@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# main_setup.sh
+
 # Include common functions
 source ./common_functions.sh
 
@@ -16,6 +18,7 @@ chmod +x install_plex.sh
 chmod +x create_directories.sh
 chmod +x create_riven_compose.sh
 chmod +x common_functions.sh
+chmod +x create_troubleshooting_file.sh
 
 # Run scripts with error checking
 echo "Running install_docker.sh..."
@@ -55,30 +58,49 @@ fi
 
 echo "Bringing up Riven Docker containers..."
 
-# Stop and remove existing containers if they exist
-echo "Checking for existing Riven containers..."
+# Stop and remove existing containers based on image
+echo "Checking for existing Riven containers by image..."
 
-CONTAINERS=("riven" "riven-frontend" "riven_postgres")
+IMAGES=("spoked/riven-frontend:latest" "spoked/riven:latest" "postgres:16.3-alpine3.20")
 
-for CONTAINER in "${CONTAINERS[@]}"; do
-    if [ "$(docker ps -a -q -f name="^${CONTAINER}$")" ]; then
-        echo "Found existing container: $CONTAINER"
-        echo "Stopping and removing $CONTAINER..."
-        docker stop "$CONTAINER"
-        docker rm "$CONTAINER"
+for IMAGE in "${IMAGES[@]}"; do
+    CONTAINERS=$(docker ps -a -q --filter ancestor="$IMAGE")
+    if [ -n "$CONTAINERS" ]; then
+        echo "Found containers running image $IMAGE"
+        echo "Stopping and removing containers..."
+        docker stop $CONTAINERS
+        docker rm $CONTAINERS
     fi
 done
 
 # Now bring up the containers
-docker-compose up -d
+sudo docker-compose up -d
 if [ $? -ne 0 ]; then
     echo "Error: docker-compose up failed."
     exit 1
 fi
 
+
+# Create troubleshooting file
+./create_troubleshooting_file.sh
+
 echo "Setup complete! All services are up and running."
 
 # Get the local IP address
-get_local_ip
+if [ -f local_ip.txt ]; then
+    local_ip=$(retrieve_saved_ip)
+else
+    # If no IP is saved, run get_local_ip to generate one
+    get_local_ip
+    local_ip=$(retrieve_saved_ip)
+fi
+
+echo " SSSSS   U     U   CCCCC   CCCCC   EEEEE   SSSSS   SSSSS"
+echo "S        U     U  C       C        E      S       S"
+echo " SSSSS   U     U  C       C        EEEEE   SSSSS   SSSSS"
+echo "     S   U     U  C       C        E           S       S"
+echo " SSSSS    UUUUU    CCCCC   CCCCC   EEEEE   SSSSS   SSSSS"
 
 echo "Continue to http://$local_ip:3000 to start Riven onboarding"
+
+echo "If you are Windows users, if you have trouble opening Riven onboarding from http://$local_ip:3000, please run '.\windows_proxy.bat' first!"
