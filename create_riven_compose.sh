@@ -9,12 +9,18 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-echo "Creating docker-compose.yml for Riven..."
+# Function to get the local IP address
+get_local_ip() {
+    local_ip=$(hostname -I | awk '{print $1}')
+    if [ -z "$local_ip" ]; then
+        echo "Error: Could not retrieve local IP address."
+        exit 1
+    fi
+    echo "Local IP: $local_ip"
+}
 
-# Get the local IP address
+# Get the local IP for ORIGIN
 get_local_ip
-
-# Set ORIGIN
 ORIGIN="http://$local_ip:3000"
 
 # Get PUID and PGID from the user who invoked sudo
@@ -23,7 +29,13 @@ PGID=$(id -g "$SUDO_USER")
 
 # Export PUID, PGID, and TZ to be used in docker-compose.yml
 export PUID PGID
-export TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
+if [ -f /etc/timezone ]; then
+    TZ=$(cat /etc/timezone)
+else
+    TZ=$(timedatectl | grep "Time zone" | awk '{print $3}')
+    TZ=${TZ:-"UTC"}
+fi
+export TZ
 
 # Ask if zurg library is at default path
 echo "Is your zurg library located at /mnt/zurg/__all__? (yes/no)"
@@ -43,17 +55,29 @@ fi
 # Save ZURG_ALL_PATH for future reference
 echo "$ZURG_ALL_PATH" > ZURG_ALL_PATH.txt
 
-# Read RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY from a file (if stored)
+# Read Real-Debrid API key from a file (if stored)
 if [ -f RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY.txt ]; then
     RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY=$(cat RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY.txt)
 else
     read -p "Enter your RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY: " RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY
     if [ -z "$RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY" ]; then
-        echo "Error: RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY cannot be empty."
+        echo "Error: Real-Debrid API key cannot be empty."
         exit 1
     fi
     echo "$RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY" > RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY.txt
 fi
+
+# Ensure the /home/docker/riven-db directory exists with correct permissions
+POSTGRES_DIR="/home/docker/riven-db"
+if [ ! -d "$POSTGRES_DIR" ]; then
+    echo "Creating $POSTGRES_DIR..."
+    mkdir -p "$POSTGRES_DIR"
+fi
+
+# Set correct ownership and permissions
+chown "$PUID":"$PGID" "$POSTGRES_DIR"
+chmod 755 -R "$POSTGRES_DIR"
+echo "Directory $POSTGRES_DIR created with ownership set to PUID: $PUID, PGID: $PGID and permissions set to 755."
 
 # Create the .env file for environment variables
 cat <<EOF > .env
@@ -67,15 +91,13 @@ echo ".env file created with PUID, PGID, and TZ."
 # Create the docker-compose.yml file
 cat <<EOF > docker-compose.yml
 version: '3.8'
-
 services:
   riven-frontend:
-    container_name: riven-frontend
     image: spoked/riven-frontend:latest
+    container_name: riven-frontend
     restart: unless-stopped
     ports:
       - "3000:3000"
-    tty: true
     environment:
       - PUID=\${PUID}
       - PGID=\${PGID}
@@ -83,7 +105,7 @@ services:
       - ORIGIN=$ORIGIN
       - BACKEND_URL=http://riven:8080
       - DIALECT=postgres
-      - DATABASE_URL=postgres://postgres:postgres@riven-db/riven
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@riven-db/riven
     depends_on:
       riven:
         condition: service_healthy
@@ -91,19 +113,19 @@ services:
       - riven_network
 
   riven:
-    container_name: riven
     image: spoked/riven:latest
+    container_name: riven
     restart: unless-stopped
-    tty: true
     environment:
       - PUID=\${PUID}
       - PGID=\${PGID}
       - TZ=\${TZ}
       - RIVEN_FORCE_ENV=true
       - RIVEN_DATABASE_HOST=postgresql+psycopg2://postgres:postgres@riven-db/riven
+      - RIVEN_PLEX_URL=
+      - RIVEN_PLEX_TOKEN=
       - RIVEN_PLEX_RCLONE_PATH=/mnt/zurg/__all__
       - RIVEN_PLEX_LIBRARY_PATH=/mnt/library
-      - RIVEN_DOWNLOADERS_REAL_DEBRID_ENABLED=true
       - RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY=$RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY
       - RIVEN_ORIGIN=$ORIGIN
       - REPAIR_SYMLINKS=false
@@ -124,15 +146,15 @@ services:
       - riven_network
 
   riven_postgres:
-    container_name: riven-db
     image: postgres:16.3-alpine3.20
+    container_name: riven-db
     environment:
-      PGDATA: /var/lib/postgresql/data/pgdata
+      PGDATA: /var/lib/postgresql/data/
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: riven
     volumes:
-      - ./riven-db:/var/lib/postgresql/data/pgdata
+       - /home/docker/riven-db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -140,6 +162,7 @@ services:
       retries: 5
     networks:
       - riven_network
+
 
 networks:
   riven_network:
@@ -151,4 +174,4 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "docker-compose.yml created."
+echo "docker-compose.yml created successfully."
