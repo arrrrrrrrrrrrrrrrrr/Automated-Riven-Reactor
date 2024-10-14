@@ -61,7 +61,7 @@ After installation, the following default configurations will be set up:
 
 You can adjust these paths if needed, but ensure any changes are reflected in the appropriate configuration files to ensure smooth operation across Riven, Plex, and other services.
 
-For further assistance with setup or onboarding, visit the [Riven Wiki](https://rivenmedia.github.io/wiki/) for detailed guides and troubleshooting help.
+**For further assistance with setup or onboarding, visit the [Riven Wiki](https://rivenmedia.github.io/wiki/) for detailed guides and troubleshooting help.**
 
 We also encourage you to join our Discord community for additional support and discussions. Click below to join:
 
