@@ -39,7 +39,7 @@ This script simplifies the installation of Riven and provides optional setups fo
     .\windows_proxy.bat
     ```
 
-###NOTE
+#### NOTE
 - During installation, you’ll have the option to install Plex Media Server.
 - Zurg and rclone will be automatically installed **only if they are present** in the directory. If they are already installed, the script will skip their installation.
 
