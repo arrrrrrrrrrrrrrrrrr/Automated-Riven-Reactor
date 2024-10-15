@@ -68,7 +68,16 @@ if [ -z "$REAL_DEBRID_API" ]; then
 fi
 
 # Step 5: Handle Plex URL
-echo "Default by in docker is "http://plex:32400" if Plex was created by Automated-Riven-Reactor"
+
+if [ -f local_ip.txt ]; then
+    local_ip=$(retrieve_saved_ip)
+else
+    # If no IP is saved, run get_local_ip to generate one
+    get_local_ip
+    local_ip=$(retrieve_saved_ip)
+fi
+
+echo "Default by in docker is "http://$local_ip:32400" if Plex was created by Automated-Riven-Reactor"
 echo "The current Plex URL for Riven to see was set up by this script: $PLEX_URL"
 read -p "Is this correct? (yes/no): " PLEX_URL_CONFIRM
 
