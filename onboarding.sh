@@ -89,7 +89,7 @@ fi
 read -p "Please enter your Plex token: " PLEX_TOKEN
 
 # Step 7: Ask user if they want 4K enabled
-read -p "Do you want to enable 4K (2160p) quality? (yes/no) (Default is 1080p only, you can change later in Riven Settings): " ENABLE_4K
+read -p "Do you want to enable 4K (2160p) quality? (yes/no) (Default is 1080p and 720p, you can change later in Riven Settings): " ENABLE_4K
 
 if [ "$ENABLE_4K" == "yes" ]; then
     ENABLE_4K="true"
