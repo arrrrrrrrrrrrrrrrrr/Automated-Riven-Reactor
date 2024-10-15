@@ -109,6 +109,7 @@ read -p "Do you want to me to configure onboarding for you ? It will configure R
 if [ "$CONFIG_CHOICE" == "yes" ]; then
     ./onboarding.sh
     echo "Continue to http://$local_ip:3000 to start Riven, it takes about 20 seconds to show up"
+    exit
 
 else
     echo "Continue to http://$local_ip:3000 to start Riven onboarding"
