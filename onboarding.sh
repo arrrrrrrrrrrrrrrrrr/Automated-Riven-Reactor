@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source ./common_functions.sh
+
 # File path for the settings.json
 SETTINGS_FILE="./riven/settings.json"
 DEFAULT_PLEX_URL="http://plex:32400"
