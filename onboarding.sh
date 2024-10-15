@@ -91,18 +91,8 @@ read -p "Please enter your Plex token: " PLEX_TOKEN
 # Step 7: Ask user if they want 4K enabled
 read -p "Do you want to enable 4K (2160p) quality? (yes/no) (Default is 1080p and 720p, you can change later in Riven Settings): " ENABLE_4K
 
-if [ "$ENABLE_4K" == "yes" ]; then
-    ENABLE_4K="true"
-else
-    ENABLE_4K="false"
-fi
-
-# Step 8: Modify the settings.json
-jq --arg real_debrid_api "$REAL_DEBRID_API" \
-   --arg plex_url "$PLEX_URL" \
-   --arg plex_token "$PLEX_TOKEN" \
-   --arg enable_4k "$ENABLE_4K" \
-   '.symlink.rclone_path = "/mnt/zurg/__all__" |
+# Base jq command
+jq_command='.symlink.rclone_path = "/mnt/zurg/__all__" |
     .symlink.library_path = "/mnt/library" |
     .updaters.plex.enabled = true |
     .updaters.plex.url = $plex_url |
@@ -110,10 +100,21 @@ jq --arg real_debrid_api "$REAL_DEBRID_API" \
     .downloaders.real_debrid.enabled = true |
     .downloaders.real_debrid.api_key = $real_debrid_api |
     .downloaders.real_debrid.proxy_enabled = false |
-    .content.plex_watchlist.enabled = true |
+    .scraping.knightcrawler.enabled = true |
     .scraping.torrentio.enabled = true |
-    .scraping.torrentio["2160p"] = ($enable_4k == "true")' \
-    "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+    .content.plex_watchlist.enabled = true'
+
+# Check if 4K should be enabled and append to jq command
+if [ "$ENABLE_4K" == "yes" ]; then
+    jq_command="$jq_command | .ranking.resolutions[\"2160p\"] = true"
+fi
+
+# Modify the settings.json
+jq --arg real_debrid_api "$REAL_DEBRID_API" \
+   --arg plex_url "$PLEX_URL" \
+   --arg plex_token "$PLEX_TOKEN" \
+   "$jq_command" \
+   "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
 
 echo "Settings have been updated."
 
