@@ -19,6 +19,7 @@ chmod +x create_directories.sh
 chmod +x create_riven_compose.sh
 chmod +x common_functions.sh
 chmod +x create_troubleshooting_file.sh
+chmod +x onboarding.sh
 
 # Run scripts with error checking
 echo "Running install_docker.sh..."
@@ -101,6 +102,19 @@ echo "SSSSSS   U     U  C       C        EEEEE   SSSSS  SSSSSS"
 echo "     S   U     U  C       C        E           S       S"
 echo "SSSSSS   UUUUUUU   CCCCC   CCCCC   EEEEE  SSSSSS  SSSSSS"
 
-echo "Continue to http://$local_ip:3000 to start Riven onboarding"
+# Ask the user if they want to go through onboarding or minimum config
+echo "We can also finish the onboarding for you!"
+read -p "Do you want to me to configure onboarding for you ? It will configure Riven just enough to start, you can configure the rest later in Riven Settings (yes/no): " CONFIG_CHOICE
 
-echo "If you are Windows users, if you have trouble opening Riven onboarding from http://$local_ip:3000, please run '.\windows_proxy.bat' first!"
+if [ "$CONFIG_CHOICE" == "yes" ]; then
+    ./onboarding.sh
+    echo "Continue to http://$local_ip:3000 to start Riven"
+
+else
+    echo "Continue to http://$local_ip:3000 to start Riven onboarding"
+    echo "If you are Windows users, if you have trouble opening Riven onboarding from http://$local_ip:3000, please run '.\windows_proxy.bat' first!"
+    exit
+fi
+
+
+

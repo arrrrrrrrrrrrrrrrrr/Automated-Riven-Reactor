@@ -38,18 +38,40 @@ This script simplifies the installation of Riven and provides optional setups fo
     ```bash
     .\windows_proxy.bat
     ```
-
-#### NOTE
-- During installation, you’ll have the option to install Plex Media Server.
-- Zurg and rclone will be automatically installed **only if they are present** in the directory. If they are already installed, the script will skip their installation.
-
-## windows_proxy.bat: Proxy WSL Docker Bridge IP to Machine IP
+### windows_proxy.bat: Proxy WSL Docker Bridge IP to Machine IP
 
 The `windows_proxy.bat` script is designed to simplify access to Docker containers running inside WSL by binding the Docker network's bridge (NAT) IP (typically in the 172.x.x.x range) to your Windows machine's IP address.
 
 This allows any service running inside Docker containers, including Riven, Plex, or other applications, to be accessed using your machine's IP address rather than the internal Docker IP. This makes the containers easily reachable from outside the WSL environment without complex networking setups.
 
 Running `windows_proxy.bat` will ensure that any ports exposed by Docker containers in WSL will be proxied to your machine's IP, providing seamless access to all containerized services.
+
+#### NOTE
+- During installation, you’ll have the option to install Plex Media Server.
+- Zurg and rclone will be automatically installed **only if they are not present** in the directory. If they are already installed, the script will skip their installation.
+
+## Bypass Riven Onboarding with Pre-Configured Settings
+
+A new feature has been added that allows you to bypass the onboarding process for Riven by automatically configuring it with the essential settings required to get started. This simplifies the setup process by providing just enough configuration to launch Riven without manual onboarding steps.
+
+### How It Works:
+
+1. When running the installation script, Riven will automatically be configured with minimal settings, such as:
+   - **Real-Debrid Integration**: Uses your API token to integrate Real-Debrid.
+   - **Library Path**: Points to the default media library location (`/mnt/library`).
+   - **Rclone Path**: Set to `/mnt/zurg/__all__` for remote media access.
+   - **Basic User Preferences**: Set to default options for initial startup.
+
+2. After installation, Riven will be ready to use with the basic configuration.
+
+### Optional Customization:
+
+If you want to customize these settings further, you can edit the `settings.json` file located in the `./riven` directory. This allows you to fine-tune your configuration without needing to go through the onboarding process manually.
+
+### Obtaining Your Plex Token:
+
+For Plex integration, you will need to obtain your Plex token. You can follow the instructions [here](https://www.plexopedia.com/plex-media-server/general/plex-token/) to retrieve your Plex token.
+
 
 
 
@@ -67,7 +89,8 @@ After installation, the following default configurations will be set up:
 
 - **Zurg/Rclone Information**: Zurg and rclone-related files are located in the `zurg` folder, alongside the installation scripts. If they are already installed, the script will skip their reinstallation.
 
-- **Troubleshooting Logs**: Any troubleshooting logs generated after running the script will be saved as `troubleshoot-<timestamp>.txt` in the same directory as the script.
+- **Troubleshooting Logs**: A troubleshooting logs will be generated after running the script will be saved as `troubleshoot-<timestamp>.txt` in the same directory as the script. These logs are provided to help identify potential issues during onboarding or further setup, even if no errors occur.
+
 
 - **Plex URL**: If you set up Plex using this script, then the Plex's URL for Riven to recognize will be `http://plex:32400`.
 
