@@ -3,11 +3,34 @@
 # setup_zurg_and_rclone.sh
 
 # Include common functions
+if [ ! -f "./common_functions.sh" ]; then
+    echo "Error: common_functions.sh not found in the current directory."
+    exit 1
+fi
 source ./common_functions.sh
+
+# Function to detect the operating system
+detect_os() {
+    if [[ -e /etc/os-release ]]; then
+        . /etc/os-release
+        echo "$ID"
+    else
+        echo "unknown"
+    fi
+}
+
+# Detect OS
+OS_NAME=$(detect_os)
 
 # Check for root privileges
 if [[ $EUID -ne 0 ]]; then
     echo "Error: This script must be run with administrative privileges. Please run with sudo."
+    exit 1
+fi
+
+# Ensure SUDO_USER is set
+if [ -z "$SUDO_USER" ]; then
+    echo "Error: SUDO_USER is not set. Please run the script using sudo."
     exit 1
 fi
 
@@ -23,9 +46,16 @@ PGID=$(id -g "$SUDO_USER")
 export PUID PGID
 export TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
 
-# Function to check if Zurg and Rclone containers are running
+# Function to check if both Zurg and Rclone containers are running
 are_containers_running() {
-    docker ps --filter "name=zurg" --filter "name=rclone" | grep -q "zurg"
+    local zurg_running rclone_running
+    zurg_running=$(docker ps --filter "name=zurg" --filter "status=running" -q)
+    rclone_running=$(docker ps --filter "name=rclone" --filter "status=running" -q)
+    if [[ -n "$zurg_running" && -n "$rclone_running" ]]; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 # Check if Zurg and Rclone are already installed
@@ -62,34 +92,48 @@ ZURG_IMAGE="ghcr.io/debridmediamanager/zurg-testing:latest"
 # Use yq to modify YAML file (install if not present)
 if ! command -v yq &> /dev/null; then
     echo "Installing yq..."
-    if [[ "$OS_NAME" == "ubuntu" || "$OS_NAME" == "debian" ]]; then
-        curl -L https://github.com/mikefarah/yq/releases/download/v4.35.1/yq_linux_amd64 -o /usr/local/bin/yq
-        chmod +x /usr/local/bin/yq
-    elif [[ "$OS_NAME" == "arch" || "$OS_NAME" == "manjaro" ]]; then
-        pacman -Sy --noconfirm yq
-    elif [[ "$OS_NAME" == "centos" || "$OS_NAME" == "fedora" || "$OS_NAME" == "rhel" ]]; then
-        curl -L https://github.com/mikefarah/yq/releases/download/v4.35.1/yq_linux_amd64 -o /usr/local/bin/yq
-        chmod +x /usr/local/bin/yq
-    else
-        echo "Your OS is not directly supported by this script."
-        echo "Attempting to install yq by downloading the binary."
-        curl -L https://github.com/mikefarah/yq/releases/download/v4.35.1/yq_linux_amd64 -o /usr/local/bin/yq
-        chmod +x /usr/local/bin/yq
-        if ! command -v yq &> /dev/null; then
-            echo "Error: Failed to install yq."
-            exit 1
-        fi
+    case "$OS_NAME" in
+        ubuntu|debian)
+            apt-get update && apt-get install -y wget
+            wget -q https://github.com/mikefarah/yq/releases/download/v4.35.1/yq_linux_amd64 -O /usr/local/bin/yq
+            chmod +x /usr/local/bin/yq
+            ;;
+        arch|manjaro)
+            pacman -Sy --noconfirm yq
+            ;;
+        centos|fedora|rhel)
+            wget -q https://github.com/mikefarah/yq/releases/download/v4.35.1/yq_linux_amd64 -O /usr/local/bin/yq
+            chmod +x /usr/local/bin/yq
+            ;;
+        *)
+            echo "Your OS is not directly supported by this script."
+            echo "Attempting to install yq by downloading the binary."
+            wget -q https://github.com/mikefarah/yq/releases/download/v4.35.1/yq_linux_amd64 -O /usr/local/bin/yq
+            chmod +x /usr/local/bin/yq
+            ;;
+    esac
+    # Verify installation
+    if ! command -v yq &> /dev/null; then
+        echo "Error: Failed to install yq."
+        exit 1
     fi
 fi
+
 # Update the token in config.yml using yq
-yq eval ".token = \"$REAL_DEBRID_API_KEY\"" -i ./zurg/config.yml
+CONFIG_FILE="./zurg/config.yml"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Error: $CONFIG_FILE does not exist."
+    exit 1
+fi
+
+yq eval ".token = \"$REAL_DEBRID_API_KEY\"" -i "$CONFIG_FILE"
 
 # Check if /mnt/zurg is mounted and accessible
 if mountpoint -q /mnt/zurg; then
     echo "/mnt/zurg is already mounted."
 elif mount | grep "/mnt/zurg" &> /dev/null; then
     echo "/mnt/zurg is mounted but not accessible. Attempting to unmount..."
-    sudo umount -l /mnt/zurg
+    umount -l /mnt/zurg
     if [[ $? -ne 0 ]]; then
         echo "Error: Failed to unmount /mnt/zurg."
         exit 1
@@ -111,7 +155,7 @@ if [ -d "/mnt/zurg" ]; then
 else
     # Create /mnt/zurg directory
     echo "Creating /mnt/zurg directory..."
-    sudo mkdir -p /mnt/zurg
+    mkdir -p /mnt/zurg
     if [[ $? -ne 0 ]]; then
         echo "Error: Failed to create /mnt/zurg directory."
         exit 1
@@ -119,22 +163,24 @@ else
 fi
 
 # Ensure proper ownership and permissions
-sudo chown -R "$PUID:$PGID" /mnt/zurg
-sudo chmod -R 755 /mnt/zurg
+chown -R "$PUID:$PGID" /mnt/zurg
+chmod -R 755 /mnt/zurg
+
+# Function to detect WSL
+is_wsl() {
+    grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null
+}
 
 # Check if running in WSL
-if grep -qi microsoft /proc/version; then
+if is_wsl; then
     echo "Detected WSL environment."
     VOLUME_OPTION="/mnt/zurg:/data"
 else
+    echo "Detected native Linux environment."
     VOLUME_OPTION="/mnt/zurg:/data:rshared"
 fi
 
 # Navigate to the zurg directory
-if [ ! -d "zurg" ]; then
-    mkdir zurg
-fi
-
 cd zurg
 
 # Remove existing docker-compose.yml if it exists to avoid conflicts
@@ -179,7 +225,7 @@ services:
       - PGID=$PGID
       - TZ=$TZ
     volumes:
-      - VOLUME_OPTION
+      - $VOLUME_OPTION
       - ./rclone.conf:/config/rclone/rclone.conf
     networks:
       - zurg_network
@@ -202,10 +248,18 @@ if [ ! -d "rclone" ]; then
     echo "Created rclone configuration directory."
 fi
 
+# Check for required dependencies
+for cmd in git curl docker docker-compose; do
+    if ! command -v "$cmd" &> /dev/null; then
+        echo "Error: $cmd is not installed. Please install it and rerun the script."
+        exit 1
+    fi
+done
+
 # Check if Docker is running
 if ! systemctl is-active --quiet docker; then
     echo "Docker service is not running. Starting Docker..."
-    sudo systemctl start docker
+    systemctl start docker
     if [[ $? -ne 0 ]]; then
         echo "Error: Failed to start Docker service."
         exit 1
