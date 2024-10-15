@@ -14,7 +14,7 @@ This script simplifies the installation of Riven and provides optional setups fo
 ### Step 2: Start the Installation
 - Follow the appropriate steps for your operating system, ensuring you use **sudo/admin privileges** during the process.
 
-## Step 3: Configure Plex Media Library
+### Step 3: Configure Plex Media Library
 
 Once Zurg and rclone have been initiated and the necessary mounts have been set up, the script will automatically create two important directories for your Plex Media Server:
 
