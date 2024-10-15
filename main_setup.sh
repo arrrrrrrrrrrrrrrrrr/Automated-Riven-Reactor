@@ -36,17 +36,17 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "Running install_plex.sh..."
-./install_plex.sh
-if [ $? -ne 0 ]; then
-    echo "Error: install_plex.sh failed."
-    exit 1
-fi
-
 echo "Running create_directories.sh..."
 ./create_directories.sh
 if [ $? -ne 0 ]; then
     echo "Error: create_directories.sh failed."
+    exit 1
+fi
+
+echo "Running install_plex.sh..."
+./install_plex.sh
+if [ $? -ne 0 ]; then
+    echo "Error: install_plex.sh failed."
     exit 1
 fi
 
