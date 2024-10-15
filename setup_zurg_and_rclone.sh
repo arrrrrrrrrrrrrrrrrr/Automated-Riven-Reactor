@@ -122,6 +122,14 @@ fi
 sudo chown -R "$PUID:$PGID" /mnt/zurg
 sudo chmod -R 755 /mnt/zurg
 
+# Check if running in WSL
+if grep -qi microsoft /proc/version; then
+    echo "Detected WSL environment."
+    VOLUME_OPTION="/mnt/zurg:/data"
+else
+    VOLUME_OPTION="/mnt/zurg:/data:rshared"
+fi
+
 # Navigate to the zurg directory
 if [ ! -d "zurg" ]; then
     mkdir zurg
@@ -171,7 +179,7 @@ services:
       - PGID=$PGID
       - TZ=$TZ
     volumes:
-      - /mnt/zurg:/data:rshared
+      - VOLUME_OPTION
       - ./rclone.conf:/config/rclone/rclone.conf
     networks:
       - zurg_network
