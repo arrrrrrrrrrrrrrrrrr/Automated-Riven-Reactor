@@ -77,6 +77,7 @@ else
     local_ip=$(retrieve_saved_ip)
 fi
 
+echo "Default Plex URL provided by this script can be incorrect due to compatibility, please double check!"
 echo "Default URL for Plex is \"http://$local_ip:32400\" if Plex is in the same machine"
 echo "The current Plex URL for Riven to see was set up by this script: $PLEX_URL"
 read -p "Is this correct? (yes/no): " PLEX_URL_CONFIRM
