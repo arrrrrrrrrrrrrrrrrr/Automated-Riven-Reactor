@@ -21,6 +21,8 @@ Once Zurg and rclone have been initiated and the necessary mounts have been set 
 - `/mnt/library/movies`: This folder will store your movie collection.
 - `/mnt/library/shows`: This folder will store your TV shows.
 
+####**This should be configured after the script went through Plex Setup.**
+
 #### Linux Systems:
 1. Open a terminal with the necessary permissions.
 2. Start the installation by running:
