@@ -109,7 +109,7 @@ You can adjust these paths if needed, but ensure any changes are reflected in th
 
 We also encourage you to join our Discord community for additional support and discussions. Click below to join:
 
-[![Discord](https://img.shields.io/badge/Discord-Join%20us-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/XTRvJxcF)
+[![Discord](https://img.shields.io/badge/Discord-Join%20us-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/rivenmedia)
 
 ## Need Help?
 
