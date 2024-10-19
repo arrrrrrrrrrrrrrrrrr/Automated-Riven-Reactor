@@ -1,4 +1,7 @@
 @echo off
+:: Set working directory to the directory where the script is located
+cd /d "%~dp0"
+
 :: Check if the script is being run as administrator
 net session >nul 2>&1
 if %errorlevel% neq 0 (
@@ -50,7 +53,7 @@ wsl bash -c "mkdir -p ~/Automated-Riven && rm -rf ~/Automated-Riven/*"
 
 :: Use WSL cp to copy files from Windows to WSL
 for /f "delims=" %%i in ('wsl wslpath "%cd%"') do set current_wsl_path=%%i
-wsl bash -c "cp -r %current_wsl_path%/* $HOME/Automated-Riven/"
+wsl bash -c "cp -r \"%current_wsl_path%\"/* \"$HOME/Automated-Riven/\""
 
 :: Ensure passwordless sudo for the current WSL user
 echo Configuring passwordless sudo for WSL user...
@@ -58,6 +61,6 @@ wsl bash -c "echo \"$(whoami) ALL=(ALL) NOPASSWD:ALL\" | sudo tee -a /etc/sudoer
 
 :: Run main_setup.sh using sudo in WSL from $HOME/Automated-Riven
 echo Starting main_setup.sh with sudo...
-wsl sudo bash "$HOME/Automated-Riven/main_setup.sh"
+wsl bash -c "cd ~/Automated-Riven && sudo bash ./main_setup.sh"
 
 pause
