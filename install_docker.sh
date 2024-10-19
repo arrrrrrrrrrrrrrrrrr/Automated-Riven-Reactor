@@ -2,6 +2,9 @@
 
 # install_docker.sh
 
+# Exit immediately if a command exits with a non-zero status
+set -e
+
 # Check for root privileges
 if [[ $EUID -ne 0 ]]; then
     echo "Error: This script must be run with administrative privileges. Please run with sudo."
@@ -15,7 +18,7 @@ command_exists() {
 
 # Function to compare Docker versions
 is_latest_docker() {
-    local_installed_version=$(docker version --format '{{.Server.Version}}')
+    local_installed_version=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo "None")
     latest_version=$(curl -s https://api.github.com/repos/docker/docker-ce/releases/latest | grep -Po '"tag_name": "\K.*?(?=")' | sed 's/^v//')
 
     if [[ "$local_installed_version" == "$latest_version" ]]; then
@@ -43,10 +46,13 @@ detect_os_family() {
             OS_FAMILY="fedora"
         elif [[ "$ID" == "opensuse-leap" || "$ID" == "sles" || "$ID" == "suse" || "$ID_LIKE" == *"suse"* ]]; then
             OS_FAMILY="suse"
-        elif grep -qEi "(Microsoft|WSL)" /proc/version &> /dev/null; then
-            OS_FAMILY="wsl"
         else
             OS_FAMILY="unknown"
+        fi
+
+        # Check for WSL
+        if grep -qEi "(Microsoft|WSL)" /proc/version &> /dev/null; then
+            OS_FAMILY="wsl"
         fi
 
         echo "Detected OS: $OS_PRETTY_NAME"
@@ -63,11 +69,26 @@ install_or_update_docker() {
 
     if [[ "$OS_FAMILY" == "debian" ]]; then
         sudo apt-get update
+        sudo apt-get install -y \
+            apt-transport-https \
+            ca-certificates \
+            curl \
+            gnupg \
+            lsb-release
+
+        sudo mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/$ID/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$ID \
+          $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+        sudo apt-get update
         sudo apt-get install -y docker-ce docker-ce-cli containerd.io
 
         # Enable and start Docker
         sudo systemctl enable docker
-        sudo systemctl start docker
+        sudo systemctl start docker || true
 
         # Add user to docker group
         sudo usermod -aG docker "$SUDO_USER"
@@ -84,9 +105,14 @@ install_or_update_docker() {
         sudo usermod -aG docker "$SUDO_USER"
 
     elif [[ "$OS_FAMILY" == "fedora" ]]; then
-        sudo dnf -y install docker-ce docker-ce-cli containerd.io
+        sudo dnf -y install dnf-plugins-core
+        sudo dnf config-manager \
+            --add-repo \
+            https://download.docker.com/linux/fedora/docker-ce.repo
 
-        # Start Docker
+        sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+        # Enable and start Docker
         sudo systemctl enable docker
         sudo systemctl start docker
 
@@ -97,7 +123,7 @@ install_or_update_docker() {
         sudo zypper refresh
         sudo zypper install -y docker
 
-        # Start Docker
+        # Enable and start Docker
         sudo systemctl enable docker
         sudo systemctl start docker
 
@@ -105,9 +131,59 @@ install_or_update_docker() {
         sudo usermod -aG docker "$SUDO_USER"
 
     elif [[ "$OS_FAMILY" == "wsl" ]]; then
-        echo "Detected WSL. Installing Docker Desktop is recommended."
-        echo "Please install Docker Desktop for Windows and enable WSL integration."
-        return 1
+        echo "Detected WSL. Proceeding to install Docker Engine inside WSL."
+
+        # Update package index
+        sudo apt-get update
+
+        # Install prerequisites
+        sudo apt-get install -y \
+            apt-transport-https \
+            ca-certificates \
+            curl \
+            gnupg \
+            lsb-release
+
+        # Add Docker’s official GPG key
+        sudo mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+            sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+        # Set up the stable repository
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+          https://download.docker.com/linux/ubuntu \
+          $(lsb_release -cs) stable" | \
+          sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+        # Update package index
+        sudo apt-get update
+
+        # Install Docker Engine
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+
+        # Start Docker daemon manually since WSL doesn't support systemd by default
+        echo "Starting Docker daemon manually in WSL..."
+        sudo dockerd > /dev/null 2>&1 &
+
+        # Wait for Docker daemon to start
+        sleep 5
+
+        # Verify Docker is running
+        if command_exists docker && docker info > /dev/null 2>&1; then
+            echo "Docker installed and daemon is running in WSL."
+        else
+            echo "Error: Docker installation failed in WSL."
+            exit 1
+        fi
+
+        # Add user to docker group
+        sudo groupadd docker || true
+        sudo usermod -aG docker "$SUDO_USER"
+
+        echo "Note: Docker daemon has been started manually in WSL."
+        echo "To have it start automatically, consider adding 'sudo dockerd > /dev/null 2>&1 &' to your shell's startup script (e.g., ~/.bashrc)."
+
     else
         echo "Unsupported OS for automatic Docker installation."
         return 1
@@ -125,7 +201,7 @@ install_or_update_docker_compose() {
 
     DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
     if [[ -z "$DOCKER_COMPOSE_VERSION" ]]; then
-        DOCKER_COMPOSE_VERSION="2.29.2"
+        DOCKER_COMPOSE_VERSION="v2.29.2"
     fi
 
     ARCH=$(uname -m)
@@ -143,18 +219,22 @@ install_or_update_docker_compose() {
         echo "Error: Docker Compose installation failed."
         return 1
     fi
+
+    echo "Docker Compose installed/updated successfully."
 }
 
 # Function to install or update Git
 install_or_update_git() {
     echo "Installing or updating Git..."
-    if [[ "$OS_FAMILY" == "debian" ]]; then
+    if [[ "$OS_FAMILY" == "debian" || "$OS_FAMILY" == "wsl" ]]; then
         sudo apt-get update
         sudo apt-get install -y git
     elif [[ "$OS_FAMILY" == "arch" ]]; then
         sudo pacman -Sy --noconfirm git
     elif [[ "$OS_FAMILY" == "fedora" ]]; then
         sudo dnf install -y git
+    elif [[ "$OS_FAMILY" == "suse" ]]; then
+        sudo zypper install -y git
     else
         echo "Unsupported OS for automatic Git installation."
         return 1
@@ -164,6 +244,8 @@ install_or_update_git() {
         echo "Error: Git installation failed."
         return 1
     fi
+
+    echo "Git installed/updated successfully."
 }
 
 # Main script execution
@@ -220,3 +302,5 @@ else
         echo "Git installed successfully."
     fi
 fi
+
+echo "All installations are complete."
