@@ -67,7 +67,7 @@ detect_os_family() {
 install_or_update_docker() {
     echo "Installing or updating Docker..."
 
-    if [[ "$OS_FAMILY" == "debian" ]]; then
+    if [[ "$OS_FAMILY" == "debian" || "$OS_FAMILY" == "wsl" ]]; then
         sudo apt-get update
         sudo apt-get install -y \
             apt-transport-https \
@@ -84,7 +84,48 @@ install_or_update_docker() {
           $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
         sudo apt-get update
-        sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+        # Start Docker daemon manually since WSL doesn't support systemd by default
+        echo "Starting Docker daemon manually in WSL..."
+        sudo dockerd > /dev/null 2>&1 &
+
+        # Wait for Docker daemon to start
+        sleep 5
+
+        # Verify Docker is running
+        if command_exists docker && docker info > /dev/null 2>&1; then
+            echo "Docker installed and daemon is running in WSL."
+        else
+            echo "Error: Docker installation failed in WSL."
+            exit 1
+        fi
+
+        # Add user to docker group
+        sudo groupadd docker || true
+        sudo usermod -aG docker "$SUDO_USER"
+
+        echo "Note: Docker daemon has been started manually in WSL."
+        echo "To have it start automatically, consider adding 'sudo dockerd > /dev/null 2>&1 &' to your shell's startup script (e.g., ~/.bashrc)."
+
+    elif [[ "$OS_FAMILY" == "debian" ]]; then
+        sudo apt-get update
+        sudo apt-get install -y \
+            apt-transport-https \
+            ca-certificates \
+            curl \
+            gnupg \
+            lsb-release
+
+        sudo mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/$ID/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$ID \
+          $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+        sudo apt-get update
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
         # Enable and start Docker
         sudo systemctl enable docker
@@ -95,7 +136,7 @@ install_or_update_docker() {
 
     elif [[ "$OS_FAMILY" == "arch" ]]; then
         sudo pacman -Syu --noconfirm
-        sudo pacman -Sy --noconfirm docker
+        sudo pacman -Sy --noconfirm docker docker-compose
 
         # Enable and start Docker service
         sudo systemctl enable docker
@@ -121,7 +162,7 @@ install_or_update_docker() {
 
     elif [[ "$OS_FAMILY" == "suse" ]]; then
         sudo zypper refresh
-        sudo zypper install -y docker
+        sudo zypper install -y docker docker-compose
 
         # Enable and start Docker
         sudo systemctl enable docker
@@ -129,60 +170,6 @@ install_or_update_docker() {
 
         # Add user to docker group
         sudo usermod -aG docker "$SUDO_USER"
-
-    elif [[ "$OS_FAMILY" == "wsl" ]]; then
-        echo "Detected WSL. Proceeding to install Docker Engine inside WSL."
-
-        # Update package index
-        sudo apt-get update
-
-        # Install prerequisites
-        sudo apt-get install -y \
-            apt-transport-https \
-            ca-certificates \
-            curl \
-            gnupg \
-            lsb-release
-
-        # Add Docker’s official GPG key
-        sudo mkdir -p /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-            sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-        # Set up the stable repository
-        echo \
-          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-          https://download.docker.com/linux/ubuntu \
-          $(lsb_release -cs) stable" | \
-          sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-        # Update package index
-        sudo apt-get update
-
-        # Install Docker Engine
-        sudo apt-get install -y docker-ce docker-ce-cli containerd.io
-
-        # Start Docker daemon manually since WSL doesn't support systemd by default
-        echo "Starting Docker daemon manually in WSL..."
-        sudo dockerd > /dev/null 2>&1 &
-
-        # Wait for Docker daemon to start
-        sleep 5
-
-        # Verify Docker is running
-        if command_exists docker && docker info > /dev/null 2>&1; then
-            echo "Docker installed and daemon is running in WSL."
-        else
-            echo "Error: Docker installation failed in WSL."
-            exit 1
-        fi
-
-        # Add user to docker group
-        sudo groupadd docker || true
-        sudo usermod -aG docker "$SUDO_USER"
-
-        echo "Note: Docker daemon has been started manually in WSL."
-        echo "To have it start automatically, consider adding 'sudo dockerd > /dev/null 2>&1 &' to your shell's startup script (e.g., ~/.bashrc)."
 
     else
         echo "Unsupported OS for automatic Docker installation."
@@ -199,28 +186,63 @@ install_or_update_docker() {
 install_or_update_docker_compose() {
     echo "Installing or updating Docker Compose..."
 
-    DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
-    if [[ -z "$DOCKER_COMPOSE_VERSION" ]]; then
-        DOCKER_COMPOSE_VERSION="v2.29.2"
+    if [[ "$OS_FAMILY" == "debian" || "$OS_FAMILY" == "wsl" ]]; then
+        # Docker Compose is installed via the docker-compose-plugin package
+        if docker compose version > /dev/null 2>&1; then
+            echo "Docker Compose is already installed and up to date."
+        else
+            echo "Error: Docker Compose installation failed."
+            return 1
+        fi
+    elif [[ "$OS_FAMILY" == "arch" ]]; then
+        # Docker Compose is installed via pacman
+        if docker compose version > /dev/null 2>&1; then
+            echo "Docker Compose is already installed and up to date."
+        else
+            echo "Error: Docker Compose installation failed."
+            return 1
+        fi
+    elif [[ "$OS_FAMILY" == "fedora" ]]; then
+        # Docker Compose is installed via dnf
+        if docker compose version > /dev/null 2>&1; then
+            echo "Docker Compose is already installed and up to date."
+        else
+            echo "Error: Docker Compose installation failed."
+            return 1
+        fi
+    elif [[ "$OS_FAMILY" == "suse" ]]; then
+        # Docker Compose is installed via zypper
+        if docker compose version > /dev/null 2>&1; then
+            echo "Docker Compose is already installed and up to date."
+        else
+            echo "Error: Docker Compose installation failed."
+            return 1
+        fi
+    else
+        # Manual installation for other OS families
+        DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
+        if [[ -z "$DOCKER_COMPOSE_VERSION" ]]; then
+            DOCKER_COMPOSE_VERSION="v2.29.2"
+        fi
+
+        ARCH=$(uname -m)
+        if [[ "$ARCH" == "x86_64" ]]; then
+            ARCH="x86_64"
+        elif [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
+            ARCH="aarch64"
+        fi
+
+        sudo mkdir -p /usr/local/lib/docker/cli-plugins
+        sudo curl -SL "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-$ARCH" -o /usr/local/lib/docker/cli-plugins/docker-compose
+        sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+        if docker compose version > /dev/null 2>&1; then
+            echo "Docker Compose installed/updated successfully."
+        else
+            echo "Error: Docker Compose installation failed."
+            return 1
+        fi
     fi
-
-    ARCH=$(uname -m)
-    if [[ "$ARCH" == "x86_64" ]]; then
-        ARCH="x86_64"
-    elif [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
-        ARCH="aarch64"
-    fi
-
-    sudo mkdir -p /usr/local/lib/docker/cli-plugins
-    sudo curl -SL "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-$ARCH" -o /usr/local/lib/docker/cli-plugins/docker-compose
-    sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-
-    if ! command_exists docker-compose; then
-        echo "Error: Docker Compose installation failed."
-        return 1
-    fi
-
-    echo "Docker Compose installed/updated successfully."
 }
 
 # Function to install or update Git
@@ -278,8 +300,8 @@ else
 fi
 
 # Check if Docker Compose is installed
-if command_exists docker-compose; then
-    echo "Docker Compose is already installed. Version: $(docker-compose --version)"
+if docker compose version > /dev/null 2>&1; then
+    echo "Docker Compose is already installed. Version: $(docker compose version --short)"
 else
     echo "Docker Compose is not installed. Attempting to install..."
     if ! install_or_update_docker_compose; then
