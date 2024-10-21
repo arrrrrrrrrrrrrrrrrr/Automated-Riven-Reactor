@@ -174,7 +174,7 @@ is_wsl() {
 # Check if running in WSL
 if is_wsl; then
     echo "Detected WSL environment."
-    VOLUME_OPTION="/mnt/zurg:/data:shared"
+    VOLUME_OPTION="/mnt/zurg:/data:rshared"
 else
     echo "Detected native Linux environment."
     VOLUME_OPTION="/mnt/zurg:/data:rshared"
