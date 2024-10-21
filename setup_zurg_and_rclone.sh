@@ -175,6 +175,7 @@ is_wsl() {
 if is_wsl; then
     echo "Detected WSL environment."
     VOLUME_OPTION="/mnt/zurg:/data:rshared"
+    sudo mount --make-share /
 else
     echo "Detected native Linux environment."
     VOLUME_OPTION="/mnt/zurg:/data:rshared"
