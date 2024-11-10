@@ -103,9 +103,6 @@ services:
       - BACKEND_URL=http://riven:8080
       - DIALECT=postgres
       - DATABASE_URL=postgresql+psycopg2://postgres:postgres@riven-db/riven
-    depends_on:
-      riven:
-        condition: service_healthy
     networks:
       - riven_network
 
@@ -127,11 +124,6 @@ services:
       - RIVEN_ORIGIN=$ORIGIN
       - REPAIR_SYMLINKS=false
       - HARD_RESET=false
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:8080 >/dev/null || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
     volumes:
       - ./riven:/riven/data
       - /mnt:/mnt/
