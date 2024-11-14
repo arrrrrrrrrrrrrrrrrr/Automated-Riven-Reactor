@@ -95,6 +95,8 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    volumes:
+      - ./rivenfrontend:/riven/config      
     environment:
       - PUID=\${PUID}
       - PGID=\${PGID}
