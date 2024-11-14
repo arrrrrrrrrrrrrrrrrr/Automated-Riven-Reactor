@@ -45,4 +45,9 @@ mkdir -p "./riven-db"
 chown "$PUID:$PGID" "./riven-db"
 chmod 755 "./riven-db"
 
+# Create local folder for frontend data
+mkdir -p "./rivenfrontend"
+chown "$PUID:$PGID" "./rivenfrontend"
+chmod 755 "./rivenfrontend"
+
 echo "Directories created and permissions set."
