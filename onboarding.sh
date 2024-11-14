@@ -120,6 +120,7 @@ jq --arg real_debrid_api "$REAL_DEBRID_API" \
 echo "Settings have been updated."
 
 # Step 9: Restart riven to apply settings
+sudo docker restart plex
 sudo docker restart riven
     echo "Riven service restarted successfully."
     echo "Setup complete. Enjoy!"
