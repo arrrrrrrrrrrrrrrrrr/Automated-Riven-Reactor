@@ -75,12 +75,11 @@ for IMAGE in "${IMAGES[@]}"; do
 done
 
 # Now bring up the containers
-sudo docker-compose up -d
+sudo docker compose up -d
 if [ $? -ne 0 ]; then
-    echo "Error: docker-compose up failed."
+    echo "Error: docker compose up failed."
     exit 1
 fi
-
 
 # Create troubleshooting file
 ./create_troubleshooting_file.sh
@@ -110,12 +109,8 @@ if [ "$CONFIG_CHOICE" == "yes" ]; then
     ./onboarding.sh
     echo "Continue to http://$local_ip:3000 to start Riven, it takes about 20 seconds to show up"
     exit
-
 else
     echo "Continue to http://$local_ip:3000 to start Riven onboarding"
     echo "If you are Windows users, if you have trouble opening Riven onboarding from http://$local_ip:3000, please run '.\windows_proxy.bat' first!"
     exit
 fi
-
-
-

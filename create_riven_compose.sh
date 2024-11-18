@@ -53,16 +53,11 @@ fi
 # Save ZURG_ALL_PATH for future reference
 echo "$ZURG_ALL_PATH" > ZURG_ALL_PATH.txt
 
-# Read Real-Debrid API key from a file (if stored)
-if [ -f RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY.txt ]; then
-    RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY=$(cat RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY.txt)
-else
-    read -p "Enter your REAL-DEBRID API KEY: " RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY
-    if [ -z "$RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY" ]; then
-        echo "Error: Real-Debrid API key cannot be empty."
-        exit 1
-    fi
-    echo "$RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY" > RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY.txt
+# Get Real-Debrid API key using the common function
+RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY=$(get_real_debrid_api_key)
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to get Real-Debrid API Key."
+    exit 1
 fi
 
 # Ensure the /home/docker/riven-db directory exists with correct permissions

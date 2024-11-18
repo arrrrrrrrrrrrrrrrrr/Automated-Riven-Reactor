@@ -62,9 +62,16 @@ get_existing_values_from_files() {
 # Step 3: Attempt to retrieve values from existing files
 get_existing_values_from_files
 
-# Step 4: If Real-Debrid API Key is not found, ask the user
-if [ -z "$REAL_DEBRID_API" ]; then
-  read -p "Please enter your Real-Debrid API key: " REAL_DEBRID_API
+# Get Real-Debrid API Key using the common function
+REAL_DEBRID_API=$(get_real_debrid_api_key)
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to get Real-Debrid API Key."
+    exit 1
+fi
+
+# Step 4: If Plex URL is not found, ask the user
+if [ -z "$PLEX_URL" ]; then
+  read -p "Please enter your Plex URL: " PLEX_URL
 fi
 
 # Step 5: Handle Plex URL
@@ -124,4 +131,3 @@ echo "Settings have been updated."
 sudo docker restart riven
     echo "Riven service restarted successfully."
     echo "Setup complete. Enjoy!"
-

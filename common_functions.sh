@@ -51,3 +51,34 @@ retrieve_saved_ip() {
         exit 1
     fi
 }
+
+# Function to get and store Real-Debrid API key
+get_real_debrid_api_key() {
+    local api_key_file="${SCRIPT_DIR:-$(pwd)}/real_debrid_api.txt"
+    
+    # Check if API key already exists
+    if [[ -f "$api_key_file" ]]; then
+        local stored_key
+        stored_key=$(cat "$api_key_file")
+        if [[ -n "$stored_key" ]]; then
+            echo "$stored_key"
+            return 0
+        fi
+    fi
+    
+    # If not found or empty, prompt for it
+    local api_key=""
+    while [[ -z "$api_key" ]]; do
+        read -p "Enter your Real-Debrid API Key: " api_key
+        if [[ -z "$api_key" ]]; then
+            echo "Error: Real-Debrid API Key cannot be empty."
+        fi
+    done
+    
+    # Store the API key
+    if ! echo "$api_key" > "$api_key_file"; then
+        echo "Warning: Failed to store API key for future use." >&2
+    fi
+    
+    echo "$api_key"
+}

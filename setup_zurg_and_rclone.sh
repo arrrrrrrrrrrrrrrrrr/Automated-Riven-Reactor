@@ -64,18 +64,12 @@ if are_containers_running; then
     exit 0
 fi
 
-# Prompt for Real-Debrid API Key
-read -p "Enter your Real-Debrid API Key: " REAL_DEBRID_API_KEY
-
-if [ -z "$REAL_DEBRID_API_KEY" ]; then
-    echo "Error: Real-Debrid API Key cannot be empty."
+# Get Real-Debrid API Key using the common function
+REAL_DEBRID_API_KEY=$(get_real_debrid_api_key)
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to get Real-Debrid API Key."
     exit 1
 fi
-
-# Save the API key for future reference (ensure permissions are set to prevent unauthorized access)
-echo "$REAL_DEBRID_API_KEY" > real_debrid_api_key.txt
-chmod 600 real_debrid_api_key.txt
-chown "$SUDO_USER":"$SUDO_USER" real_debrid_api_key.txt
 
 # Clone zurg-testing repository if 'zurg' directory doesn't exist
 if [ ! -d "zurg" ]; then
