@@ -9,7 +9,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # File path for the settings.json
-SETTINGS_FILE="./riven/settings.json"
+SETTINGS_FILE="./riven/riven/riven/settings.json"
 
 # Get local IP for Plex URL
 local_ip=$(retrieve_saved_ip)
