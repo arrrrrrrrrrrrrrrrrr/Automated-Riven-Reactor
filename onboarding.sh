@@ -2,15 +2,30 @@
 
 source ./common_functions.sh
 
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
 # File path for the settings.json
 SETTINGS_FILE="./riven/settings.json"
-DEFAULT_PLEX_URL="http://plex:32400"
 
+# Get local IP for Plex URL
+local_ip=$(retrieve_saved_ip)
+if [ -z "$local_ip" ]; then
+    echo -e "${RED}Error: Could not retrieve local IP. Please ensure main_setup.sh was run first.${NC}"
+    exit 1
+fi
+
+# Set Plex URLs
+DEFAULT_PLEX_URL="http://$local_ip:32400"
+PLEX_URL="http://$local_ip:32400"
 
 # Function to check if jq is installed and install if necessary
 install_jq_if_missing() {
   if ! command -v jq &> /dev/null; then
-    echo "'jq' is not installed. Installing now..."
+    echo -e "${YELLOW}'jq' is not installed. Installing now...${NC}"
     
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
       if [ -f /etc/debian_version ]; then
@@ -20,22 +35,22 @@ install_jq_if_missing() {
       elif [ -f /etc/arch-release ]; then
         sudo pacman -S jq
       else
-        echo "Unsupported Linux distribution. Please install jq manually."
+        echo -e "${RED}Unsupported Linux distribution. Please install jq manually.${NC}"
         exit 1
       fi
     elif [[ "$OSTYPE" == "darwin"* ]]; then
       if command -v brew &> /dev/null; then
         brew install jq
       else
-        echo "Homebrew is not installed. Please install jq manually via Homebrew (https://brew.sh/)."
+        echo -e "${RED}Homebrew is not installed. Please install jq manually via Homebrew (https://brew.sh/).${NC}"
         exit 1
       fi
     else
-      echo "Unsupported operating system. Please install jq manually."
+      echo -e "${RED}Unsupported operating system. Please install jq manually.${NC}"
       exit 1
     fi
   else
-    echo "'jq' is already installed."
+    echo -e "${GREEN}'jq' is already installed.${NC}"
   fi
 }
 
@@ -55,7 +70,7 @@ get_existing_values_from_files() {
   if [ -f "./RIVEN_PLEX_URL.txt" ]; then
     PLEX_URL=$(cat "./RIVEN_PLEX_URL.txt")
   else
-    PLEX_URL="$DEFAULT_PLEX_URL"
+    PLEX_URL=""
   fi
 }
 
@@ -65,39 +80,48 @@ get_existing_values_from_files
 # Get Real-Debrid API Key using the common function
 REAL_DEBRID_API=$(get_real_debrid_api_key)
 if [ $? -ne 0 ]; then
-    echo "Error: Failed to get Real-Debrid API Key."
+    echo -e "${RED}Error: Failed to get Real-Debrid API Key.${NC}"
     exit 1
 fi
 
-# Step 4: If Plex URL is not found, ask the user
-if [ -z "$PLEX_URL" ]; then
-  read -p "Please enter your Plex URL: " PLEX_URL
-fi
-
 # Step 5: Handle Plex URL
+echo -e "${GREEN}Plex Server Configuration:${NC}"
+echo -e "${GREEN}1. Default URL: $DEFAULT_PLEX_URL${NC}"
+echo -e "${GREEN}2. Current URL: $PLEX_URL${NC}"
+echo -e "${GREEN}The URL should point to your Plex server (usually http://IP:32400)${NC}"
+read -p "$(echo -e "${YELLOW}Is this configuration correct? (y/n): ${NC}")" PLEX_URL_CONFIRM
 
-if [ -f local_ip.txt ]; then
-    local_ip=$(retrieve_saved_ip)
+if [[ ! "$PLEX_URL_CONFIRM" =~ ^[Yy][Ee]?[Ss]?$ ]]; then
+    echo -e "${GREEN}Enter the URL that points to your Plex server:${NC}"
+    echo -e "${GREEN}If Plex is running on this machine, use: $DEFAULT_PLEX_URL${NC}"
+    echo -e "${GREEN}If Plex is on another machine, use: http://MACHINE_IP:32400${NC}"
+    read -p "$(echo -e "${YELLOW}Enter Plex URL: ${NC}")" PLEX_URL
 else
-    # If no IP is saved, run get_local_ip to generate one
-    get_local_ip
-    local_ip=$(retrieve_saved_ip)
+    # Ensure we're using the local IP URL if user confirms it's correct
+    PLEX_URL="$DEFAULT_PLEX_URL"
 fi
 
-echo "Default Plex URL provided by this script can be incorrect due to compatibility, please double check!"
-echo "Default URL for Plex is \"http://$local_ip:32400\" if Plex is in the same machine"
-echo "The current Plex URL for Riven to see was set up by this script: $PLEX_URL"
-read -p "Is this correct? (yes/no): " PLEX_URL_CONFIRM
+# Verify the Plex URL before proceeding
+echo -e "${GREEN}Using Plex URL: $PLEX_URL${NC}"
 
-if [ "$PLEX_URL_CONFIRM" == "no" ]; then
-  read -p "Please enter the correct Plex URL: " PLEX_URL
+# Step 6: Manual Plex Token Configuration
+echo -e "${GREEN}Plex Token Configuration:${NC}"
+if [ -n "$PLEX_TOKEN" ]; then
+    echo -e "${GREEN}Current Plex Token: $PLEX_TOKEN${NC}"
+    read -p "$(echo -e "${YELLOW}Do you want to keep this token? (y/n): ${NC}")" KEEP_TOKEN
+    if [[ ! "$KEEP_TOKEN" =~ ^[Yy][Ee]?[Ss]?$ ]]; then
+        read -p "$(echo -e "${YELLOW}Enter your Plex Token: ${NC}")" PLEX_TOKEN
+    fi
+else
+    read -p "$(echo -e "${YELLOW}Enter your Plex Token: ${NC}")" PLEX_TOKEN
 fi
-
-# Step 6: Manual Plex Token input
-read -p "Please enter your Plex token: " PLEX_TOKEN
 
 # Step 7: Ask user if they want 4K enabled
-read -p "Do you want to enable 4K (2160p) quality? (yes/no) (Default is 1080p and 720p, you can change later in Riven Settings): " ENABLE_4K
+echo -e "${GREEN}Quality Settings Configuration:${NC}"
+echo -e "${GREEN}1. Default: 1080p and 720p enabled${NC}"
+echo -e "${GREEN}2. Optional: 4K (2160p) quality${NC}"
+echo -e "${GREEN}Note: You can change these settings later in Riven Settings${NC}"
+read -p "$(echo -e "${YELLOW}Would you like to enable 4K quality? (y/n): ${NC}")" ENABLE_4K
 
 # Base jq command
 jq_command='.symlink.rclone_path = "/mnt/zurg/__all__" |
@@ -113,7 +137,7 @@ jq_command='.symlink.rclone_path = "/mnt/zurg/__all__" |
     .content.plex_watchlist.enabled = true'
 
 # Check if 4K should be enabled and append to jq command
-if [ "$ENABLE_4K" == "yes" ]; then
+if [[ "$ENABLE_4K" =~ ^[Yy][Ee]?[Ss]?$ ]]; then
     jq_command="$jq_command | .ranking.resolutions[\"2160p\"] = true"
 fi
 
@@ -124,10 +148,10 @@ jq --arg real_debrid_api "$REAL_DEBRID_API" \
    "$jq_command" \
    "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
 
-echo "Settings have been updated."
+echo -e "${GREEN}Settings have been updated.${NC}"
 
 # Step 9: Restart riven to apply settings
 
 sudo docker restart riven
-    echo "Riven service restarted successfully."
-    echo "Setup complete. Enjoy!"
+echo -e "${GREEN}Riven service restarted successfully.${NC}"
+echo -e "${GREEN}Setup complete. Enjoy!${NC}"

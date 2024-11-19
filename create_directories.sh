@@ -1,12 +1,18 @@
 #!/bin/bash
 
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
 # Check for root privileges
 if [[ $EUID -ne 0 ]]; then
-   echo "Error: This script must be run with administrative privileges. Please run with sudo."
+   echo -e "${RED}Error: This script must be run with administrative privileges. Please run with sudo.${NC}"
    exit 1
 fi
 
-echo "Creating directories with permissions 755 and owner $SUDO_USER..."
+echo -e "${GREEN}Creating directories with permissions 755 and owner $SUDO_USER...${NC}"
 
 # Get PUID and PGID from the user who invoked sudo
 PUID=$(id -u "$SUDO_USER")
@@ -46,8 +52,8 @@ chown "$PUID:$PGID" "./riven-db"
 chmod 755 "./riven-db"
 
 # Create local folder for frontend data
-mkdir -p "./rivenfrontend"
-chown "$PUID:$PGID" "./rivenfrontend"
-chmod 755 "./rivenfrontend"
+mkdir -p "./riven/rivenfrontend"
+chown "$PUID:$PGID" "./riven/rivenfrontend"
+chmod 755 "./riven/rivenfrontend"
 
-echo "Directories created and permissions set."
+echo -e "${GREEN}Directories created and permissions set.${NC}"

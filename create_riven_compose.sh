@@ -3,21 +3,25 @@
 # Include common functions
 source ./common_functions.sh
 
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
 # Check for root privileges
 if [[ $EUID -ne 0 ]]; then
-    echo "Error: This script must be run with administrative privileges. Please run with sudo."
+    echo -e "${RED}Error: This script must be run with administrative privileges. Please run with sudo.${NC}"
     exit 1
 fi
 
     
 
 # Get the local IP for ORIGIN
-if [ -f local_ip.txt ]; then
-    local_ip=$(retrieve_saved_ip)
-else
-    # If no IP is saved, run get_local_ip to generate one
-    get_local_ip
-    local_ip=$(retrieve_saved_ip)
+local_ip=$(retrieve_saved_ip)
+if [ -z "$local_ip" ]; then
+    echo -e "${RED}Error: Could not retrieve local IP. Please ensure main_setup.sh was run first.${NC}"
+    exit 1
 fi
 ORIGIN="http://$local_ip:3000"
 
@@ -36,16 +40,20 @@ fi
 export TZ
 
 # Ask if zurg library is at default path
-echo "Is your zurg library located at /mnt/zurg/__all__? (yes/no)"
-read -p "Enter your choice (yes/no): " ZURG_DEFAULT_PATH
+echo -e "${GREEN}Zurg Library Configuration:${NC}"
+echo -e "${GREEN}1. Default path: /mnt/zurg/__all__${NC}"
+echo -e "${GREEN}2. Custom path: You'll need to specify the path${NC}"
+echo -e "${YELLOW}Type 'y' for default path, 'n' for custom path${NC}"
+read -p "$(echo -e "${YELLOW}Your choice (y/n): ${NC}")" ZURG_DEFAULT_PATH
 
-if [[ "$ZURG_DEFAULT_PATH" == "yes" ]]; then
+if [[ "$ZURG_DEFAULT_PATH" =~ ^[Yy]$ ]]; then
     ZURG_ALL_PATH="/mnt/zurg/__all__"
 else
-    # Prompt for custom zurg __all__ path
-    read -p "Enter your zurg library path: " ZURG_ALL_PATH
+    echo -e "${GREEN}Enter the full path where your Zurg library is located${NC}"
+    echo -e "${GREEN}Example: /path/to/your/zurg/library${NC}"
+    read -p "$(echo -e "${YELLOW}Enter your Zurg library path: ${NC}")" ZURG_ALL_PATH
     if [ -z "$ZURG_ALL_PATH" ]; then
-        echo "Error: Zurg library path cannot be empty."
+        echo -e "${RED}Error: Zurg library path cannot be empty.${NC}"
         exit 1
     fi
 fi
@@ -56,33 +64,33 @@ echo "$ZURG_ALL_PATH" > ZURG_ALL_PATH.txt
 # Get Real-Debrid API key using the common function
 RIVEN_DOWNLOADERS_REAL_DEBRID_API_KEY=$(get_real_debrid_api_key)
 if [ $? -ne 0 ]; then
-    echo "Error: Failed to get Real-Debrid API Key."
+    echo -e "${RED}Error: Failed to get Real-Debrid API Key.${NC}"
     exit 1
 fi
 
 # Ensure the /home/docker/riven-db directory exists with correct permissions
 POSTGRES_DIR="/home/docker/riven-db"
 if [ ! -d "$POSTGRES_DIR" ]; then
-    echo "Creating $POSTGRES_DIR..."
+    echo -e "${GREEN}Creating $POSTGRES_DIR...${NC}"
     mkdir -p "$POSTGRES_DIR"
 fi
 
 # Set correct ownership and permissions
 chown "$PUID":"$PGID" "$POSTGRES_DIR"
 chmod 755 -R "$POSTGRES_DIR"
-echo "Directory $POSTGRES_DIR created with ownership set to PUID: $PUID, PGID: $PGID and permissions set to 755."
+echo -e "${GREEN}Directory $POSTGRES_DIR created with ownership set to PUID: $PUID, PGID: $PGID and permissions set to 755.${NC}"
 
 # Create the .env file for environment variables
-cat <<EOF > .env
+cat <<EOF > ./riven/.env
 PUID=$PUID
 PGID=$PGID
 TZ=$TZ
 EOF
 
-echo ".env file created with PUID, PGID, and TZ."
+echo -e "${GREEN}.env file created with PUID, PGID, and TZ.${NC}"
 
 # Create the docker-compose.yml file
-cat <<EOF > docker-compose.yml
+cat <<EOF > ./riven/docker-compose.yml
 services:
   riven-frontend:
     image: spoked/riven-frontend:latest
@@ -91,7 +99,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./rivenfrontend:/riven/config      
+      - ./riven/rivenfrontend:/riven/config      
     environment:
       - PUID=\${PUID}
       - PGID=\${PGID}
@@ -122,7 +130,7 @@ services:
       - REPAIR_SYMLINKS=false
       - HARD_RESET=false
     volumes:
-      - ./riven:/riven/data
+      - ./riven/riven:/riven/data
       - /mnt:/mnt/
       - $ZURG_ALL_PATH:/mnt/zurg/__all__
     depends_on:
@@ -159,8 +167,8 @@ networks:
 EOF
 
 if [ $? -ne 0 ]; then
-    echo "Error: Failed to create docker-compose.yml."
+    echo -e "${RED}Error: Failed to create docker-compose.yml.${NC}"
     exit 1
 fi
 
-echo "docker-compose.yml created successfully."
+echo -e "${GREEN}docker-compose.yml created in ./riven directory.${NC}"

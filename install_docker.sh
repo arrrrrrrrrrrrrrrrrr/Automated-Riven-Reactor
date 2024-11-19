@@ -1,328 +1,330 @@
 #!/bin/bash
 
-# install_docker.sh
-
-# Exit immediately if a command exits with a non-zero status
+# Exit on any error
 set -e
-
-# Check for root privileges
-if [[ $EUID -ne 0 ]]; then
-    echo "Error: This script must be run with administrative privileges. Please run with sudo."
-    exit 1
-fi
 
 # Function to check if a command exists
 command_exists() {
     command -v "$1" &> /dev/null
 }
 
-# Function to compare Docker versions
-is_latest_docker() {
-    local_installed_version=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo "None")
-    latest_version=$(curl -s https://api.github.com/repos/docker/docker-ce/releases/latest | grep -Po '"tag_name": "\K.*?(?=")' | sed 's/^v//')
-
-    if [[ "$local_installed_version" == "$latest_version" ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Function to detect OS family
+# Detect the operating system and distribution
 detect_os_family() {
-    if [ -f /etc/os-release ]; then
+    if [[ -f /etc/os-release ]]; then
         . /etc/os-release
         OS_NAME=$ID
         OS_VERSION=$VERSION_ID
         OS_PRETTY_NAME=$PRETTY_NAME
         OS_ID_LIKE=$ID_LIKE
 
-        # Map derivative distributions to their parent
-        if [[ "$ID" == "ubuntu" || "$ID" == "debian" || "$ID_LIKE" == *"debian"* ]]; then
+        if [[ "$ID" =~ (ubuntu|debian) || "$ID_LIKE" =~ (debian) ]]; then
             OS_FAMILY="debian"
-        elif [[ "$ID" == "arch" || "$ID_LIKE" == *"arch"* ]]; then
+        elif [[ "$ID" =~ (arch) || "$ID_LIKE" =~ (arch) ]]; then
             OS_FAMILY="arch"
-        elif [[ "$ID" == "fedora" || "$ID" == "centos" || "$ID" == "rhel" || "$ID_LIKE" == *"fedora"* ]]; then
+        elif [[ "$ID" =~ (fedora|rhel|centos) || "$ID_LIKE" =~ (fedora|rhel) ]]; then
             OS_FAMILY="fedora"
-        elif [[ "$ID" == "opensuse-leap" || "$ID" == "sles" || "$ID" == "suse" || "$ID_LIKE" == *"suse"* ]]; then
+        elif [[ "$ID" =~ (opensuse|sles) || "$ID_LIKE" =~ (suse) ]]; then
             OS_FAMILY="suse"
         else
             OS_FAMILY="unknown"
         fi
 
-        # Check for WSL
-        if grep -qEi "(Microsoft|WSL)" /proc/version &> /dev/null; then
+        # Special handling for WSL
+        if grep -qEi "(Microsoft|WSL)" /proc/version; then
             OS_FAMILY="wsl"
         fi
 
         echo "Detected OS: $OS_PRETTY_NAME"
         echo "OS Family: $OS_FAMILY"
     else
-        echo "Error: Cannot detect the operating system."
+        echo "Error: Unable to detect the operating system."
         exit 1
     fi
 }
 
-# Function to install or update Docker
-install_or_update_docker() {
-    echo "Installing or updating Docker..."
+# Function to check if a package is installed (for Arch)
+is_package_installed() {
+    pacman -Qi "$1" >/dev/null 2>&1
+}
 
-    if [[ "$OS_FAMILY" == "debian" || "$OS_FAMILY" == "wsl" ]]; then
-        sudo apt-get update
-        sudo apt-get install -y \
-            apt-transport-https \
-            ca-certificates \
-            curl \
-            gnupg \
-            lsb-release
+# Function to check if a package is available (for Arch)
+is_package_available() {
+    pacman -Si "$1" >/dev/null 2>&1
+}
 
-        sudo mkdir -p /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/$ID/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+# Install rootless Docker dependencies
+install_rootless_prerequisites() {
+    local target_user=$1
+    echo "Installing prerequisites for rootless Docker for user: $target_user"
 
-        echo \
-          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$ID \
-          $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    case $OS_FAMILY in
+        debian|wsl)
+            apt-get update
+            apt-get install -y \
+                uidmap \
+                dbus-user-session \
+                fuse-overlayfs \
+                slirp4netns \
+                curl \
+                iptables
+            ;;
+        arch)
+            # Update system first
+            pacman -Syu --noconfirm
 
-        sudo apt-get update
-        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose docker-compose-plugin
+            # List of required packages
+            local packages=()
+            
+            # Check each package
+            is_package_installed "shadow" || packages+=("shadow")
+            is_package_installed "dbus" || packages+=("dbus")
+            is_package_installed "fuse-overlayfs" || packages+=("fuse-overlayfs")
+            is_package_installed "slirp4netns" || packages+=("slirp4netns")
+            is_package_installed "curl" || packages+=("curl")
+            
+            # Special handling for iptables
+            if ! is_package_installed "iptables" && ! is_package_installed "iptables-nft"; then
+                if is_package_installed "iptables-nft"; then
+                    echo "iptables-nft is already installed, skipping iptables installation"
+                else
+                    packages+=("iptables-nft")
+                fi
+            fi
 
-        # Start Docker daemon manually since WSL doesn't support systemd by default
-        echo "Starting Docker daemon manually in WSL..."
-        sudo dockerd > /dev/null 2>&1 &
-
-        # Wait for Docker daemon to start
-        sleep 5
-
-        # Verify Docker is running
-        if command_exists docker && docker info > /dev/null 2>&1; then
-            echo "Docker installed and daemon is running in WSL."
-        else
-            echo "Error: Docker installation failed in WSL."
+            # Install packages only if there are any missing
+            if [ ${#packages[@]} -gt 0 ]; then
+                echo "Installing missing packages: ${packages[*]}"
+                pacman -S --noconfirm "${packages[@]}" || {
+                    echo "Error installing packages. Please install them manually:"
+                    echo "sudo pacman -S ${packages[*]}"
+                    exit 1
+                }
+            else
+                echo "All required packages are already installed."
+            fi
+            ;;
+        fedora)
+            dnf install -y \
+                uidmap \
+                dbus-daemon \
+                fuse-overlayfs \
+                slirp4netns \
+                curl \
+                iptables \
+                shadow-utils
+            ;;
+        suse)
+            zypper refresh
+            zypper install -y \
+                shadow \
+                dbus-1 \
+                fuse-overlayfs \
+                slirp4netns \
+                curl \
+                iptables
+            ;;
+        *)
+            echo "Error: Unsupported OS for rootless Docker."
             exit 1
-        fi
+            ;;
+    esac
 
-        # Add user to docker group
-        sudo groupadd docker || true
-        sudo usermod -aG docker "$SUDO_USER"
-
-        echo "Note: Docker daemon has been started manually in WSL."
-        echo "To have it start automatically, consider adding 'sudo dockerd > /dev/null 2>&1 &' to your shell's startup script (e.g., ~/.bashrc)."
-
-    elif [[ "$OS_FAMILY" == "debian" ]]; then
-        sudo apt-get update
-        sudo apt-get install -y \
-            apt-transport-https \
-            ca-certificates \
-            curl \
-            gnupg \
-            lsb-release
-
-        sudo mkdir -p /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/$ID/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-        echo \
-          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$ID \
-          $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-        sudo apt-get update
-        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose docker-compose-plugin
-
-        # Enable and start Docker
-        sudo systemctl enable docker
-        sudo systemctl start docker || true
-
-        # Add user to docker group
-        sudo usermod -aG docker "$SUDO_USER"
-
-    elif [[ "$OS_FAMILY" == "arch" ]]; then
-        sudo pacman -Syu --noconfirm
-        sudo pacman -Sy --noconfirm docker docker-compose
-
-        # Enable and start Docker service
-        sudo systemctl enable docker
-        sudo systemctl start docker
-
-        # Add user to docker group
-        sudo usermod -aG docker "$SUDO_USER"
-
-    elif [[ "$OS_FAMILY" == "fedora" ]]; then
-        sudo dnf -y install dnf-plugins-core
-        sudo dnf config-manager \
-            --add-repo \
-            https://download.docker.com/linux/fedora/docker-ce.repo
-
-        sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-
-        # Enable and start Docker
-        sudo systemctl enable docker
-        sudo systemctl start docker
-
-        # Add user to docker group
-        sudo usermod -aG docker "$SUDO_USER"
-
-    elif [[ "$OS_FAMILY" == "suse" ]]; then
-        sudo zypper refresh
-        sudo zypper install -y docker docker-compose
-
-        # Enable and start Docker
-        sudo systemctl enable docker
-        sudo systemctl start docker
-
-        # Add user to docker group
-        sudo usermod -aG docker "$SUDO_USER"
-
-    else
-        echo "Unsupported OS for automatic Docker installation."
-        return 1
-    fi
-
-    if ! command_exists docker; then
-        echo "Error: Docker installation failed."
-        return 1
-    fi
+    # Ensure runtime directory exists for the target user
+    su - "$target_user" -c 'mkdir -p /run/user/$(id -u)'
+    su - "$target_user" -c 'chmod 700 /run/user/$(id -u)'
+    return 0
 }
 
-# Function to install or update Docker Compose
-install_or_update_docker_compose() {
-    echo "Installing or updating Docker Compose..."
+# Install rootless Docker
+install_rootless_docker() {
+    local target_user=$1
+    local target_home=$(getent passwd "$target_user" | cut -d: -f6)
+    echo "Installing Docker in rootless mode for user: $target_user"
 
-    if [[ "$OS_FAMILY" == "debian" || "$OS_FAMILY" == "wsl" ]]; then
-        # Docker Compose is installed via the docker-compose-plugin package
-        if docker compose version > /dev/null 2>&1; then
-            echo "Docker Compose is already installed and up to date."
-        else
-            echo "Error: Docker Compose installation failed."
-            return 1
-        fi
-    elif [[ "$OS_FAMILY" == "arch" ]]; then
-        # Docker Compose is installed via pacman
-        if docker compose version > /dev/null 2>&1; then
-            echo "Docker Compose is already installed and up to date."
-        else
-            echo "Error: Docker Compose installation failed."
-            return 1
-        fi
-    elif [[ "$OS_FAMILY" == "fedora" ]]; then
-        # Docker Compose is installed via dnf
-        if docker compose version > /dev/null 2>&1; then
-            echo "Docker Compose is already installed and up to date."
-        else
-            echo "Error: Docker Compose installation failed."
-            return 1
-        fi
-    elif [[ "$OS_FAMILY" == "suse" ]]; then
-        # Docker Compose is installed via zypper
-        if docker compose version > /dev/null 2>&1; then
-            echo "Docker Compose is already installed and up to date."
-        else
-            echo "Error: Docker Compose installation failed."
-            return 1
-        fi
-    else
-        # Manual installation for other OS families
-        DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
-        if [[ -z "$DOCKER_COMPOSE_VERSION" ]]; then
-            DOCKER_COMPOSE_VERSION="v2.29.2"
-        fi
+    # Create a temporary installation script
+    cat > "$target_home/install_docker_rootless.sh" << 'EOF' || return 1
+#!/bin/bash
+set -e
 
-        ARCH=$(uname -m)
-        if [[ "$ARCH" == "x86_64" ]]; then
-            ARCH="x86_64"
-        elif [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
-            ARCH="aarch64"
-        fi
+# Setup environment
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+mkdir -p "$XDG_RUNTIME_DIR"
+chmod 700 "$XDG_RUNTIME_DIR"
 
-        sudo mkdir -p /usr/local/lib/docker/cli-plugins
-        sudo curl -SL "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-$ARCH" -o /usr/local/lib/docker/cli-plugins/docker-compose
-        sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+# Download and run rootless installation script
+curl -fsSL https://get.docker.com/rootless > ~/get-docker-rootless.sh
+chmod +x ~/get-docker-rootless.sh
+FORCE_ROOTLESS_INSTALL=1 ~/get-docker-rootless.sh
 
-        if docker compose version > /dev/null 2>&1; then
-            echo "Docker Compose installed/updated successfully."
-        else
-            echo "Error: Docker Compose installation failed."
-            return 1
-        fi
-    fi
+# Configure environment
+cat >> ~/.bashrc << 'ENVEOF'
+# Rootless Docker configuration
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export PATH="$HOME/bin:$PATH"
+export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/docker.sock"
+ENVEOF
+
+# Clean up
+rm -f ~/get-docker-rootless.sh
+EOF
+
+    # Make the script executable and owned by target user
+    chmod +x "$target_home/install_docker_rootless.sh" || return 1
+    chown "$target_user:$(id -gn "$target_user")" "$target_home/install_docker_rootless.sh" || return 1
+
+    # Enable lingering for the user
+    loginctl enable-linger "$target_user" || return 1
+
+    echo "Running rootless Docker installation as $target_user..."
+    su - "$target_user" -c "./install_docker_rootless.sh" || {
+        echo "Error: Rootless Docker installation failed"
+        return 1
+    }
+    rm -f "$target_home/install_docker_rootless.sh"
+
+    echo "Rootless Docker installation completed for user: $target_user"
+    echo "Please log out and log back in for the changes to take effect."
+    return 0
 }
 
-# Function to install or update Git
-install_or_update_git() {
-    echo "Installing or updating Git..."
-    if [[ "$OS_FAMILY" == "debian" || "$OS_FAMILY" == "wsl" ]]; then
-        sudo apt-get update
-        sudo apt-get install -y git
-    elif [[ "$OS_FAMILY" == "arch" ]]; then
-        sudo pacman -Sy --noconfirm git
-    elif [[ "$OS_FAMILY" == "fedora" ]]; then
-        sudo dnf install -y git
-    elif [[ "$OS_FAMILY" == "suse" ]]; then
-        sudo zypper install -y git
+# Install normal Docker
+install_normal_docker() {
+    echo "Installing Docker in normal mode..."
+    
+    case $OS_FAMILY in
+        debian|wsl)
+            apt-get update
+            apt-get install -y \
+                apt-transport-https \
+                ca-certificates \
+                curl \
+                gnupg \
+                lsb-release
+            
+            mkdir -p /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            
+            echo \
+                "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+                $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+            
+            apt-get update
+            apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+            ;;
+            
+        arch)
+            pacman -Syu --noconfirm
+            pacman -S --noconfirm docker docker-compose
+            systemctl enable --now docker
+            ;;
+            
+        fedora)
+            dnf -y install dnf-plugins-core
+            dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+            dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+            systemctl enable --now docker
+            ;;
+            
+        suse)
+            zypper install -y docker docker-compose
+            systemctl enable --now docker
+            ;;
+            
+        *)
+            echo "Error: Unsupported OS for Docker installation."
+            exit 1
+            ;;
+    esac
+    
+    # Configure bridge module and network settings
+    echo "Configuring bridge network settings..."
+    
+    # Load bridge module if not loaded
+    if ! lsmod | grep -q "^bridge "; then
+        echo "Loading bridge module..."
+        modprobe bridge || {
+            echo -e "${YELLOW}Warning: Could not load bridge module. This might be normal in some environments.${NC}"
+        }
+    fi
+
+    # Make the bridge module load at boot
+    if [ ! -d "/etc/modules-load.d" ]; then
+        mkdir -p /etc/modules-load.d
+    fi
+    echo "bridge" > /etc/modules-load.d/bridge.conf
+
+    # Configure sysctl settings for Docker
+    echo "Configuring network bridge settings..."
+    cat > /etc/sysctl.d/99-docker-bridge.conf << 'EOF'
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward = 1
+EOF
+
+    # Apply sysctl settings if possible
+    if sysctl -p /etc/sysctl.d/99-docker-bridge.conf > /dev/null 2>&1; then
+        echo "Network bridge settings applied successfully."
     else
-        echo "Unsupported OS for automatic Git installation."
-        return 1
+        echo -e "${YELLOW}Warning: Could not apply network bridge settings. This might be normal in some environments.${NC}"
     fi
 
-    if ! command_exists git; then
-        echo "Error: Git installation failed."
-        return 1
+    # Add current user to docker group if specified
+    if [ -n "$SUDO_USER" ]; then
+        usermod -aG docker "$SUDO_USER"
+        echo "Added user $SUDO_USER to docker group."
     fi
+    
+    echo "Docker installation completed successfully."
+    return 0
+}
 
-    echo "Git installed/updated successfully."
+# Show usage information
+show_usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo "Install Docker in either normal or rootless mode."
+    echo ""
+    echo "Options:"
+    echo "  normal              Install Docker in normal mode (requires root)"
+    echo "  rootless USERNAME   Install Docker in rootless mode for specified user (requires root)"
+    echo ""
+    echo "Examples:"
+    echo "  $0 normal          # Install normal Docker"
+    echo "  $0 rootless john   # Install rootless Docker for user 'john'"
 }
 
 # Main script execution
+if [[ $EUID -ne 0 ]]; then
+    echo "Error: This script must be run as root."
+    exit 1
+fi
 
-# Detect OS family
-detect_os_family
+detect_os_family || exit 1
 
-# Check if Docker is installed and up to date
-if command_exists docker; then
-    echo "Docker is already installed. Version: $(docker --version)"
-    if ! is_latest_docker; then
-        echo "Docker is not the latest version. Attempting to update..."
-        if ! install_or_update_docker; then
-            echo "Error: Docker update failed."
+# Parse command line arguments
+case $1 in
+    normal)
+        install_normal_docker || exit 1
+        ;;
+    rootless)
+        if [ -z "$2" ]; then
+            echo "Error: Username required for rootless installation."
+            show_usage
             exit 1
-        else
-            echo "Docker updated successfully."
         fi
-    else
-        echo "Docker is up to date."
-    fi
-else
-    echo "Docker is not installed. Attempting to install..."
-    if ! install_or_update_docker; then
-        echo "Error: Docker installation failed."
+        
+        # Check if user exists
+        if ! id "$2" &>/dev/null; then
+            echo "Error: User $2 does not exist."
+            exit 1
+        fi
+        
+        install_rootless_prerequisites "$2" || exit 1
+        install_rootless_docker "$2" || exit 1
+        ;;
+    *)
+        show_usage
         exit 1
-    else
-        echo "Docker installed successfully."
-    fi
-fi
+        ;;
+esac
 
-# Check if Docker Compose is installed
-if docker compose version > /dev/null 2>&1; then
-    echo "Docker Compose is already installed. Version: $(docker compose version --short)"
-else
-    echo "Docker Compose is not installed. Attempting to install..."
-    if ! install_or_update_docker_compose; then
-        echo "Error: Docker Compose installation failed."
-        exit 1
-    else
-        echo "Docker Compose installed successfully."
-    fi
-fi
-
-# Check if Git is installed
-if command_exists git; then
-    echo "Git is already installed. Version: $(git --version)"
-else
-    echo "Git is not installed. Attempting to install..."
-    if ! install_or_update_git; then
-        echo "Error: Git installation failed."
-        exit 1
-    else
-        echo "Git installed successfully."
-    fi
-fi
-
-echo "All installations are complete."
+exit 0

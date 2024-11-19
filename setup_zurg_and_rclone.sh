@@ -186,17 +186,17 @@ if [ -f "docker-compose.yml" ]; then
 fi
 
 # Create the docker-compose.yml file without the version field
-cat <<EOF > docker-compose.yml
+cat > docker-compose.yml << 'EOF'
 services:
   zurg:
-    image: $ZURG_IMAGE
+    image: ${ZURG_IMAGE}
     container_name: zurg
     restart: unless-stopped
     environment:
-      - PUID=$PUID
-      - PGID=$PGID
-      - TZ=$TZ
-      - RD_API_KEY=$REAL_DEBRID_API_KEY
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - RD_API_KEY=${REAL_DEBRID_API_KEY}
     volumes:
       - ./plex_update.sh:/app/plex_update.sh
       - ./config.yml:/app/config.yml
@@ -216,11 +216,11 @@ services:
     security_opt:
       - apparmor:unconfined
     environment:
-      - PUID=$PUID
-      - PGID=$PGID
-      - TZ=$TZ
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
     volumes:
-      - $VOLUME_OPTION
+      - ${VOLUME_OPTION}
       - ./rclone.conf:/config/rclone/rclone.conf
     networks:
       - zurg_network
@@ -229,6 +229,14 @@ networks:
   zurg_network:
     driver: bridge
 EOF
+
+# Replace variables in the docker-compose.yml file
+sed -i "s|\${ZURG_IMAGE}|$ZURG_IMAGE|g" docker-compose.yml
+sed -i "s|\${PUID}|$PUID|g" docker-compose.yml
+sed -i "s|\${PGID}|$PGID|g" docker-compose.yml
+sed -i "s|\${TZ}|$TZ|g" docker-compose.yml
+sed -i "s|\${REAL_DEBRID_API_KEY}|$REAL_DEBRID_API_KEY|g" docker-compose.yml
+sed -i "s|\${VOLUME_OPTION}|$VOLUME_OPTION|g" docker-compose.yml
 
 if [ $? -ne 0 ]; then
     echo "Error: Failed to create docker-compose.yml."
