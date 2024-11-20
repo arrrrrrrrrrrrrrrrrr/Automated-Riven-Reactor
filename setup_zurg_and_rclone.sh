@@ -177,6 +177,7 @@ fi
 
 # Navigate to the zurg directory
 cd zurg
+mkdir data
 
 # Remove existing docker-compose.yml if it exists to avoid conflicts
 if [ -f "docker-compose.yml" ]; then
@@ -200,7 +201,7 @@ services:
     volumes:
       - ./plex_update.sh:/app/plex_update.sh
       - ./config.yml:/app/config.yml
-      - ./:/app/data
+      - ./data:/app/data
     networks:
       - zurg_network
 
