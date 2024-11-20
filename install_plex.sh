@@ -48,6 +48,13 @@ if [[ "$PLEX_INSTALL" =~ ^[Yy][Ee]?[Ss]?$ ]]; then
         TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
     fi
 
+    # Get library path based on OS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        LIBRARY_PATH="$HOME/Library/Riven"
+    else
+        LIBRARY_PATH="/mnt"
+    fi
+
     # Create docker-compose.yml for Plex
     echo -e "${GREEN}Creating Plex docker-compose.yml...${NC}"
     cat <<EOF > ./plex/docker-compose.yml
@@ -65,7 +72,7 @@ services:
     volumes:
       - ./plex/config:/config
       - ./plex/transcode:/transcode
-      - /mnt:/mnt
+      - ${LIBRARY_PATH}:${LIBRARY_PATH}
 EOF
 
     # Start Plex

@@ -9,13 +9,20 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Check for root privileges
-if [[ $EUID -ne 0 ]]; then
-    echo -e "${RED}Error: This script must be run with administrative privileges. Please run with sudo.${NC}"
-    exit 1
+# Check if running on macOS
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    CURRENT_USER=$(whoami)
+    PUID=$(id -u)
+    PGID=$(id -g)
+else
+    # Check for root privileges on Linux
+    if [[ $EUID -ne 0 ]]; then
+        echo -e "${RED}Error: This script must be run with administrative privileges on Linux. Please run with sudo.${NC}"
+        exit 1
+    fi
+    PUID=$(id -u "$SUDO_USER")
+    PGID=$(id -g "$SUDO_USER")
 fi
-
-    
 
 # Get the local IP for ORIGIN
 local_ip=$(retrieve_saved_ip)
@@ -25,37 +32,41 @@ if [ -z "$local_ip" ]; then
 fi
 ORIGIN="http://$local_ip:3000"
 
-# Get PUID and PGID from the user who invoked sudo
-PUID=$(id -u "$SUDO_USER")
-PGID=$(id -g "$SUDO_USER")
-
 # Export PUID, PGID, and TZ to be used in docker-compose.yml
 export PUID PGID
-if [ -f /etc/timezone ]; then
-    TZ=$(cat /etc/timezone)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    TZ=$(sudo systemsetup -gettimezone 2>/dev/null | awk '{print $3}' || echo "UTC")
 else
-    TZ=$(timedatectl | grep "Time zone" | awk '{print $3}')
-    TZ=${TZ:-"UTC"}
+    if [ -f /etc/timezone ]; then
+        TZ=$(cat /etc/timezone)
+    else
+        TZ=$(timedatectl | grep "Time zone" | awk '{print $3}')
+        TZ=${TZ:-"UTC"}
+    fi
 fi
 export TZ
 
+# Get library path based on OS
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    DEFAULT_LIBRARY_PATH="$HOME/Library/Riven"
+    DEFAULT_ZURG_PATH="$DEFAULT_LIBRARY_PATH/zurg/__all__"
+else
+    DEFAULT_LIBRARY_PATH="/mnt"
+    DEFAULT_ZURG_PATH="/mnt/zurg/__all__"
+fi
+
 # Ask if zurg library is at default path
 echo -e "${GREEN}Zurg Library Configuration:${NC}"
-echo -e "${GREEN}1. Default path: /mnt/zurg/__all__${NC}"
+echo -e "${GREEN}1. Default path: $DEFAULT_ZURG_PATH${NC}"
 echo -e "${GREEN}2. Custom path: You'll need to specify the path${NC}"
 echo -e "${YELLOW}Type 'y' for default path, 'n' for custom path${NC}"
 read -p "$(echo -e "${YELLOW}Your choice (y/n): ${NC}")" ZURG_DEFAULT_PATH
 
 if [[ "$ZURG_DEFAULT_PATH" =~ ^[Yy]$ ]]; then
-    ZURG_ALL_PATH="/mnt/zurg/__all__"
+    ZURG_ALL_PATH="$DEFAULT_ZURG_PATH"
 else
-    echo -e "${GREEN}Enter the full path where your Zurg library is located${NC}"
-    echo -e "${GREEN}Example: /path/to/your/zurg/library${NC}"
-    read -p "$(echo -e "${YELLOW}Enter your Zurg library path: ${NC}")" ZURG_ALL_PATH
-    if [ -z "$ZURG_ALL_PATH" ]; then
-        echo -e "${RED}Error: Zurg library path cannot be empty.${NC}"
-        exit 1
-    fi
+    echo -e "${YELLOW}Enter the full path to your Zurg library:${NC}"
+    read -p "$(echo -e "${YELLOW}Path: ${NC}")" ZURG_ALL_PATH
 fi
 
 # Save ZURG_ALL_PATH for future reference

@@ -137,51 +137,69 @@ fi
 
 yq eval ".token = \"$REAL_DEBRID_API_KEY\"" -i "$CONFIG_FILE"
 
-# Check if /mnt/zurg is mounted and accessible
-if mountpoint -q /mnt/zurg; then
-    echo "/mnt/zurg is already mounted."
-elif mount | grep "/mnt/zurg" &> /dev/null; then
-    echo "/mnt/zurg is mounted but not accessible. Attempting to unmount..."
-    umount -l /mnt/zurg
-    if [[ $? -ne 0 ]]; then
-        echo "Error: Failed to unmount /mnt/zurg."
-        exit 1
+# Function to get mount path based on OS
+get_mount_path() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "$HOME/Library/Riven/zurg"
+    else
+        echo "/mnt/zurg"
     fi
-    echo "Successfully unmounted /mnt/zurg."
-else
-    echo "/mnt/zurg is not mounted."
-fi
+}
 
-# Ensure /mnt/zurg directory exists and is not a mount point
-if [ -d "/mnt/zurg" ]; then
-    # Verify if it's a mount point
-    if mountpoint -q /mnt/zurg; then
-        echo "/mnt/zurg is still a mount point after unmounting. Exiting to prevent conflicts."
+# Get the appropriate mount path
+MOUNT_PATH=$(get_mount_path)
+
+# Check if the mount point exists
+if mountpoint -q "$MOUNT_PATH" 2>/dev/null; then
+    echo "Unmounting $MOUNT_PATH..."
+    sudo umount "$MOUNT_PATH"
+    if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to unmount $MOUNT_PATH"
         exit 1
     else
-        echo "/mnt/zurg directory exists and is accessible."
+        echo "$MOUNT_PATH is unmounted."
     fi
 else
-    # Create /mnt/zurg directory
-    echo "Creating /mnt/zurg directory..."
-    mkdir -p /mnt/zurg
+    echo "$MOUNT_PATH is not mounted."
+fi
+
+# Ensure mount directory exists and is not a mount point
+if [ -d "$MOUNT_PATH" ]; then
+    # Verify if it's a mount point (skip on macOS as it doesn't support mountpoint command)
+    if [[ "$OSTYPE" != "darwin"* ]]; then
+        if mountpoint -q "$MOUNT_PATH"; then
+            echo "$MOUNT_PATH is still a mount point after unmounting. Exiting to prevent conflicts."
+            exit 1
+        fi
+    fi
+    echo "$MOUNT_PATH directory exists and is accessible."
+else
+    # Create mount directory
+    echo "Creating $MOUNT_PATH directory..."
+    mkdir -p "$MOUNT_PATH"
     if [[ $? -ne 0 ]]; then
-        echo "Error: Failed to create /mnt/zurg directory."
+        echo "Error: Failed to create $MOUNT_PATH directory."
         exit 1
     fi
 fi
 
 # Ensure proper ownership and permissions
-chown -R "$PUID:$PGID" /mnt/zurg
-chmod -R 755 /mnt/zurg
+chown -R "$PUID:$PGID" "$MOUNT_PATH"
+chmod -R 755 "$MOUNT_PATH"
 
 # Function to detect WSL
 is_wsl() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        return 1
+    fi
     grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null
 }
 
-# Check if running in WSL
-if is_wsl; then
+# Set volume options based on environment
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "Detected macOS environment."
+    VOLUME_OPTION="$MOUNT_PATH:/data"
+elif is_wsl; then
     echo "Detected WSL environment."
     VOLUME_OPTION="/mnt/zurg:/data:shared"
     sudo mount --make-shared /
