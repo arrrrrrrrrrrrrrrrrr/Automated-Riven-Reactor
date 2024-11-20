@@ -9,10 +9,13 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Check for root privileges
-if [[ $EUID -ne 0 ]]; then
-   echo -e "${RED}Error: This script must be run with administrative privileges. Please run with sudo.${NC}"
-   exit 1
+# Check if running on macOS
+if [[ "$OSTYPE" != "darwin"* ]]; then
+    # Check for root privileges on Linux
+    if [[ $EUID -ne 0 ]]; then
+        echo -e "${RED}Error: This script must be run with administrative privileges on Linux. Please run with sudo.${NC}"
+        exit 1
+    fi
 fi
 
 echo -e "${GREEN}Plex Media Server Configuration${NC}"
@@ -38,8 +41,12 @@ if [[ "$PLEX_INSTALL" =~ ^[Yy][Ee]?[Ss]?$ ]]; then
     echo -e "${GREEN}3. Leave blank to skip (you can claim the server later)${NC}"
     read -p "$(echo -e "${YELLOW}Enter your PLEX_CLAIM token: ${NC}")" PLEX_CLAIM
 
-    # Get TZ
-    TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
+    # Get TZ based on OS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        TZ=$(sudo systemsetup -gettimezone 2>/dev/null | awk '{print $3}' || echo "UTC")
+    else
+        TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
+    fi
 
     # Create docker-compose.yml for Plex
     echo -e "${GREEN}Creating Plex docker-compose.yml...${NC}"

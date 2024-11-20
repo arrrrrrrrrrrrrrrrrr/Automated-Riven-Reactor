@@ -10,7 +10,13 @@ command_exists() {
 
 # Detect the operating system and distribution
 detect_os_family() {
-    if [[ -f /etc/os-release ]]; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        OS_FAMILY="macos"
+        OS_NAME="macos"
+        OS_PRETTY_NAME="macOS"
+        echo "Detected OS: $OS_PRETTY_NAME"
+        echo "OS Family: $OS_FAMILY"
+    elif [[ -f /etc/os-release ]]; then
         . /etc/os-release
         OS_NAME=$ID
         OS_VERSION=$VERSION_ID
@@ -278,6 +284,33 @@ EOF
     return 0
 }
 
+install_macos_docker() {
+    echo "Installing Docker for macOS..."
+    if ! command -v brew &> /dev/null; then
+        echo "Homebrew is required but not installed. Please install Homebrew first (https://brew.sh/)"
+        exit 1
+    }
+
+    # Install Docker Desktop for Mac
+    if ! brew list --cask docker &> /dev/null; then
+        brew install --cask docker
+    else
+        echo "Docker is already installed"
+    fi
+
+    # Start Docker
+    echo "Starting Docker..."
+    open -a Docker
+    
+    # Wait for Docker to start
+    echo "Waiting for Docker to start..."
+    while ! docker info &> /dev/null; do
+        sleep 1
+    done
+    
+    echo "Docker has been successfully installed and started"
+}
+
 # Show usage information
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
@@ -293,38 +326,42 @@ show_usage() {
 }
 
 # Main script execution
-if [[ $EUID -ne 0 ]]; then
-    echo "Error: This script must be run as root."
-    exit 1
-fi
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    install_macos_docker
+else
+    if [[ $EUID -ne 0 ]]; then
+        echo "Error: This script must be run as root on Linux."
+        exit 1
+    fi
 
-detect_os_family || exit 1
+    detect_os_family || exit 1
 
-# Parse command line arguments
-case $1 in
-    normal)
-        install_normal_docker || exit 1
-        ;;
-    rootless)
-        if [ -z "$2" ]; then
-            echo "Error: Username required for rootless installation."
+    # Parse command line arguments
+    case $1 in
+        normal)
+            install_normal_docker || exit 1
+            ;;
+        rootless)
+            if [ -z "$2" ]; then
+                echo "Error: Username required for rootless installation."
+                show_usage
+                exit 1
+            fi
+            
+            # Check if user exists
+            if ! id "$2" &>/dev/null; then
+                echo "Error: User $2 does not exist."
+                exit 1
+            fi
+            
+            install_rootless_prerequisites "$2" || exit 1
+            install_rootless_docker "$2" || exit 1
+            ;;
+        *)
             show_usage
             exit 1
-        fi
-        
-        # Check if user exists
-        if ! id "$2" &>/dev/null; then
-            echo "Error: User $2 does not exist."
-            exit 1
-        fi
-        
-        install_rootless_prerequisites "$2" || exit 1
-        install_rootless_docker "$2" || exit 1
-        ;;
-    *)
-        show_usage
-        exit 1
-        ;;
-esac
+            ;;
+    esac
 
-exit 0
+    exit 0
+fi

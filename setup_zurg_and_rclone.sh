@@ -11,7 +11,9 @@ source ./common_functions.sh
 
 # Function to detect the operating system
 detect_os() {
-    if [[ -e /etc/os-release ]]; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macos"
+    elif [[ -e /etc/os-release ]]; then
         . /etc/os-release
         echo "$ID"
     else
@@ -22,29 +24,39 @@ detect_os() {
 # Detect OS
 OS_NAME=$(detect_os)
 
-# Check for root privileges
-if [[ $EUID -ne 0 ]]; then
-    echo "Error: This script must be run with administrative privileges. Please run with sudo."
-    exit 1
-fi
+# Check for root privileges (skip on macOS)
+if [[ "$OSTYPE" != "darwin"* ]]; then
+    if [[ $EUID -ne 0 ]]; then
+        echo "Error: This script must be run with administrative privileges on Linux. Please run with sudo."
+        exit 1
+    fi
 
-# Ensure SUDO_USER is set
-if [ -z "$SUDO_USER" ]; then
-    echo "Error: SUDO_USER is not set. Please run the script using sudo."
-    exit 1
+    # Ensure SUDO_USER is set
+    if [ -z "$SUDO_USER" ]; then
+        echo "Error: SUDO_USER is not set. Please run the script using sudo."
+        exit 1
+    fi
 fi
 
 echo "Running setup_zurg_and_rclone.sh..."
-
 echo "Setting up Zurg and Rclone..."
 
-# Get PUID and PGID from the user who invoked sudo
-PUID=$(id -u "$SUDO_USER")
-PGID=$(id -g "$SUDO_USER")
+# Get PUID and PGID
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    PUID=$(id -u)
+    PGID=$(id -g)
+else
+    PUID=$(id -u "$SUDO_USER")
+    PGID=$(id -g "$SUDO_USER")
+fi
 
-# Export PUID, PGID, and TZ to be used in docker-compose.yml
+# Export PUID, PGID, and TZ
 export PUID PGID
-export TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    export TZ=$(sudo systemsetup -gettimezone 2>/dev/null | awk '{print $3}' || echo "UTC")
+else
+    export TZ=$(cat /etc/timezone 2>/dev/null || echo "UTC")
+fi
 
 # Function to check if both Zurg and Rclone containers are running
 are_containers_running() {
@@ -98,6 +110,9 @@ if ! command -v yq &> /dev/null; then
         centos|fedora|rhel)
             wget -q https://github.com/mikefarah/yq/releases/download/v4.35.1/yq_linux_amd64 -O /usr/local/bin/yq
             chmod +x /usr/local/bin/yq
+            ;;
+        macos)
+            brew install yq
             ;;
         *)
             echo "Your OS is not directly supported by this script."

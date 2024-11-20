@@ -14,6 +14,8 @@ detect_platform() {
         echo "linux"
     elif [[ "$OSTYPE" == "cygwin" || "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
         echo "windows"
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "darwin"
     else
         echo "unknown"
     fi
@@ -69,9 +71,16 @@ retrieve_saved_ip() {
     echo "$ip"
 }
 
-# Function to get the local IP address (now prompts user for manual input)
+# Function to get the local IP address
 get_local_ip() {
-    manual_ip_prompt
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS specific IP retrieval
+        local_ip=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -n 1)
+    else
+        # Linux IP retrieval
+        local_ip=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -n 1)
+    fi
+    echo "$local_ip"
 }
 
 # Function to prompt the user for manual IP input and retry until valid
@@ -126,4 +135,21 @@ get_real_debrid_api_key() {
     
     echo "$api_key"
     return 0
+}
+
+# Function to check package manager
+check_package_manager() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if ! command -v brew &> /dev/null; then
+            echo "Homebrew is not installed. Please install Homebrew first (https://brew.sh/)"
+            exit 1
+        fi
+        package_manager="brew"
+    else
+        if ! command -v apt-get &> /dev/null; then
+            echo "apt-get is not installed. Please install apt-get first"
+            exit 1
+        fi
+        package_manager="apt-get"
+    fi
 }

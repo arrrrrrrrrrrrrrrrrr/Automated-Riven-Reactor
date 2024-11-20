@@ -27,7 +27,13 @@ install_jq_if_missing() {
   if ! command -v jq &> /dev/null; then
     echo -e "${YELLOW}'jq' is not installed. Installing now...${NC}"
     
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      if ! command -v brew &> /dev/null; then
+        echo -e "${RED}Homebrew is required but not installed. Please install Homebrew first (https://brew.sh/)${NC}"
+        exit 1
+      fi
+      brew install jq
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
       if [ -f /etc/debian_version ]; then
         sudo apt update && sudo apt install -y jq
       elif [ -f /etc/redhat-release ]; then
@@ -36,13 +42,6 @@ install_jq_if_missing() {
         sudo pacman -S jq
       else
         echo -e "${RED}Unsupported Linux distribution. Please install jq manually.${NC}"
-        exit 1
-      fi
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-      if command -v brew &> /dev/null; then
-        brew install jq
-      else
-        echo -e "${RED}Homebrew is not installed. Please install jq manually via Homebrew (https://brew.sh/).${NC}"
         exit 1
       fi
     else
