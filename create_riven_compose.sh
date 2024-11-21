@@ -162,7 +162,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: riven
     volumes:
-       - /home/docker/riven-db:/var/lib/postgresql/data
+       - ./riven/riven-db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
