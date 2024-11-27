@@ -51,7 +51,6 @@ services:
     image: plexinc/pms-docker
     container_name: plex
     restart: unless-stopped
-    network_mode: "host"
     environment:
       - TZ=$TZ
       - PLEX_CLAIM=$PLEX_CLAIM
@@ -59,6 +58,8 @@ services:
       - ./plex/config:/config
       - ./plex/transcode:/transcode
       - /mnt:/mnt
+    ports:
+      - "32400:32400"
 EOF
 
     # Start Plex
