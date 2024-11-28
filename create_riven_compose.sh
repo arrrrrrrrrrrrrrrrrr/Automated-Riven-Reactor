@@ -112,7 +112,7 @@ services:
       - riven_network
 
   riven:
-    image: arrrrrr/riven:rdfix97
+    image: spoked/riven:latest
     container_name: riven
     restart: unless-stopped
     environment:
