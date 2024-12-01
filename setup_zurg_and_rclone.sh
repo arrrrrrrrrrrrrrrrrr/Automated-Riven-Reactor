@@ -275,7 +275,7 @@ echo "Docker service is running."
 echo "Bringing up Zurg and Rclone Docker containers..."
 
 # Bring up the containers
-docker-compose up -d
+docker compose up -d
 
 if [ $? -ne 0 ]; then
     echo "Error: Failed to start Zurg and Rclone containers."
