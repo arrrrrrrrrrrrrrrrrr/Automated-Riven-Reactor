@@ -65,7 +65,7 @@ EOF
     # Start Plex
     echo -e "${GREEN}Starting Plex Media Server...${NC}"
     cd plex
-    docker-compose up -d
+    docker compose up -d
     if [ $? -ne 0 ]; then
         echo -e "${RED}Error: Failed to start Plex Media Server.${NC}"
         exit 1
